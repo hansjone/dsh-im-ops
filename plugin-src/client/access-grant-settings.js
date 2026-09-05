@@ -285,13 +285,16 @@ function AdminPhones({
           locked
             ? h('span', { className: 'dim-accessNickname' }, '绑定账号（全局管理员）')
             : h(NicknameHint, { contacts, phone, shortEmpty: true })),
-        locked ? null : h('button', {
-          type: 'button',
-          className: 'dim-deliveryButton dim-accessCompactDelete',
-          'data-kind': 'danger',
-          disabled,
-          onClick: () => onChange(phones.filter((_, i) => i !== index)),
-        }, '删除'));
+        h('span', { className: 'dim-accessCompactSelectSlot', 'aria-hidden': 'true' }),
+        locked
+          ? h('span', { className: 'dim-accessCompactDeleteSlot', 'aria-hidden': 'true' })
+          : h('button', {
+            type: 'button',
+            className: 'dim-deliveryButton dim-accessCompactDelete',
+            'data-kind': 'danger',
+            disabled,
+            onClick: () => onChange(phones.filter((_, i) => i !== index)),
+          }, '删除'));
     })),
     h('button', {
       type: 'button',
