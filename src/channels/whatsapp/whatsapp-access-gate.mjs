@@ -8,6 +8,7 @@ import {
   attachPendingNotifyRefs,
   emptyAccessGrant,
   enqueueAccessPending,
+  ensureGroupBucket,
   ensureOwnerGlobalAdmin,
   evaluateAccessGrant,
   findPendingByNotifyMessageId,
@@ -96,16 +97,22 @@ export async function loadWhatsappAccessGrant({
  * Persist contact sighting and return updated grant.
  */
 export async function rememberWhatsappContact(workspaces, botId, grant, message, { phone, lid }) {
+  if (!phone && !lid) return grant;
   const pushName = message.contextSource?.()?.senderName;
-  const next = upsertAccessContact(grant, {
-    phone,
-    lid,
-    pushName,
-    scene: message.kind === 'group' ? 'group' : 'direct',
-    groupJid: message.kind === 'group' ? message.conversationId : undefined,
-  });
-  await workspaces.setAccessGrant(botId, next);
-  return next;
+  try {
+    const next = upsertAccessContact(grant, {
+      phone,
+      lid,
+      pushName,
+      scene: message.kind === 'group' ? 'group' : 'direct',
+      groupJid: message.kind === 'group' ? message.conversationId : undefined,
+    });
+    await workspaces.setAccessGrant(botId, next);
+    return next;
+  } catch {
+    // Contact directory is best-effort and must not block chat.
+    return grant;
+  }
 }
 
 /**
@@ -189,9 +196,25 @@ export async function gateWhatsappInbound({
   accountJid,
 }) {
   const { phone, lid } = resolveInboundPhone(message);
-  let current = await rememberWhatsappContact(workspaces, botId, grant, message, { phone, lid });
-
   const scene = message.kind === 'group' ? 'group' : 'direct';
+  const addressed = scene === 'direct' || message.addressed === true;
+  let current = grant;
+
+  // Only people who DM the bot or @ it in a group enter the contact directory.
+  if (addressed) {
+    current = await rememberWhatsappContact(workspaces, botId, current, message, { phone, lid });
+  }
+  if (scene === 'group' && addressed && message.conversationId) {
+    const title = message.contextSource?.()?.conversationTitle;
+    const withGroup = ensureGroupBucket(current, message.conversationId, {
+      ...(title ? { title } : {}),
+    });
+    if (withGroup !== current) {
+      current = withGroup;
+      await workspaces.setAccessGrant(botId, current);
+    }
+  }
+
   const isCommand = isSharedLocalCommand(message.content ?? '', {
     hasImages: Array.isArray(message.images) && message.images.length > 0,
     hasFiles: Array.isArray(message.files) && message.files.length > 0,
@@ -228,7 +251,7 @@ export async function gateWhatsappInbound({
   }
 
   // Unaddressed group spam: do not create pending.
-  if (scene === 'group' && message.addressed !== true) {
+  if (!addressed) {
     return { allowed: false, reason: 'group-unaddressed', grant: current };
   }
 

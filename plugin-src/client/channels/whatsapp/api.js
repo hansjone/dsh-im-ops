@@ -1,7 +1,9 @@
 import { normalizeAgentPresetCatalog, normalizeAgentPresetId, SET_AGENT_PRESET_ENDPOINT } from '../../agent-preset.js';
 import { normalizeLastMessageError } from '../../last-message-error.js';
+import { normalizeAccessGrant } from '../../../../src/channels/shared/access-grant.mjs';
 import { normalizeAccessPolicy } from '../../../../src/channels/shared/access-policy.mjs';
 import { normalizeContextEnhancementConfig } from '../../../../src/channels/shared/context-enhancement.mjs';
+import { normalizeGroupSessionScope } from '../../../../src/channels/shared/session-scope.mjs';
 
 export const WHATSAPP_RPC_CHANNEL = '/whatsapp';
 
@@ -13,6 +15,9 @@ export const WHATSAPP_ENDPOINTS = Object.freeze({
   reconnectBot: 'bot.reconnect',
   deleteBot: 'bot.delete',
   setAccessPolicy: 'bot.access-policy.set',
+  setAccessGrant: 'bot.access-grant.set',
+  resolveAccessPending: 'bot.access-pending.resolve',
+  setGroupSessionScope: 'bot.group-session-scope.set',
   setWorkspace: 'bot.workspace.set',
   setAgentPreset: SET_AGENT_PRESET_ENDPOINT,
   setContextEnhancement: 'bot.context-enhancement.set',
@@ -94,6 +99,12 @@ function normalizeBot(value) {
     contextEnhancement: normalizeContextEnhancementConfig(value.contextEnhancement),
     ...(Object.hasOwn(value, 'accessPolicy')
       ? { accessPolicy: normalizeAccessPolicy(value.accessPolicy) }
+      : {}),
+    ...(Object.hasOwn(value, 'accessGrant')
+      ? { accessGrant: normalizeAccessGrant(value.accessGrant) }
+      : {}),
+    ...(Object.hasOwn(value, 'groupSessionScope')
+      ? { groupSessionScope: normalizeGroupSessionScope(value.groupSessionScope) }
       : {}),
     bot: {
       name: text(value.bot?.name, 'WhatsApp机器人', 100),

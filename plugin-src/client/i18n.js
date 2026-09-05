@@ -11,6 +11,22 @@ const EN = Object.freeze({
   '机器人设置页签': 'Bot settings tabs',
   '投递设置': 'Delivery settings',
   '访问设置': 'Access settings',
+  "加本群": "Add to group",
+
+  "已在本群": "Already in group",
+
+  "加私聊": "Add to DMs",
+
+  "已在私聊": "Already in DMs",
+
+  "已加入本群授权，记得点保存。": "Added to this group. Remember to save.",
+
+  "已加入私聊授权，记得点保存。": "Added to DM access. Remember to save.",
+
+  "暂无联系人。有人私聊或 @ 机器人后会出现在此。": "No contacts yet. They appear here after someone DMs or @mentions the bot.",
+
+  "仅记录私聊机器人，或在群里 @ 机器人的人。电话是唯一授权键，可一键加入私聊/本群授权。": "Only people who DM the bot or @mention it in a group are recorded. Phone is the sole auth key; use one-click to grant DM or group access.",
+
   "WhatsApp 按电话号码授权：全局管理员管私聊；群管理员只批本群。成员不可跨群、有群权也不自动获得私聊权。": "WhatsApp authorizes by phone number: global admins manage DMs; group admins approve only their group. Members do not cross groups, and group access does not grant DMs.",
   "保存分级访问设置": "Save graded access settings",
   "保存访问与会话设置": "Save access and session settings",
