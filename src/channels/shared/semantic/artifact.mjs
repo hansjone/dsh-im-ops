@@ -576,7 +576,11 @@ export function createOutboundArtifactTool({ registry = outboundArtifactRegistry
   };
   const definition = Object.freeze({
     name: OUTBOUND_ARTIFACT_TOOL,
-    description: 'Send a readable file or generated image to the user through the current conversation. Existing and newly created files are both valid.',
+    description: [
+      'Deliver a readable file or generated image to the user in this IM chat as a real attachment.',
+      'Call this after the file exists on disk. Pasting a workspace path in the reply text does not send the file.',
+      'Existing and newly created files are both valid.',
+    ].join(' '),
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -654,7 +658,11 @@ export function installOutboundArtifactTool(ctx, { registry = outboundArtifactRe
   ctx.systemPrompt.section({
     name: 'dsh-im:return-file',
     order: 115,
-    text: `When the user asks to receive a file or generated image, call ${OUTBOUND_ARTIFACT_TOOL} with its path. Existing files can be sent directly; do not recreate or rename a file solely for delivery.`,
+    text: [
+      `When the user asks to receive a file or generated image in this IM chat, you MUST call ${OUTBOUND_ARTIFACT_TOOL} with the file path so the channel can attach it.`,
+      'Writing or pasting a local/workspace path in the reply text does not deliver the file to the user.',
+      'Create or locate the file first, then call the tool. Do not recreate or rename a file solely for delivery.',
+    ].join(' '),
   });
   return true;
 }

@@ -381,7 +381,9 @@ test('Host installer always exposes the tool and explicitly permits existing fil
   assert.equal(installed, true);
   assert.equal(definition.name, OUTBOUND_ARTIFACT_TOOL);
   assert.match(definition.description, /Existing and newly created files are both valid/);
-  assert.match(section.text, /Existing files can be sent directly/);
+  assert.match(definition.description, /Pasting a workspace path in the reply text does not send the file/);
+  assert.match(section.text, /MUST call dsh_im_return_file/);
+  assert.match(section.text, /does not deliver the file/);
   assert.equal(typeof listeners.get('tools/result'), 'function');
   assert.equal(typeof listeners.get('session/event'), 'function');
   assert.equal(typeof listeners.get('session/disposed'), 'function');
