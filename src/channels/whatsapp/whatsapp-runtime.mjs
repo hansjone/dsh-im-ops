@@ -7,12 +7,13 @@ import {
   normalizeMessageContent,
 } from '@whiskeysockets/baileys';
 
+import { emptyAccessGrant, ensureGroupBucket } from '../shared/access-grant.mjs';
 import { splitMessageText } from '../shared/editable-message-stream.mjs';
 import { t } from '../shared/i18n.mjs';
 import { ImagePromptError } from '../shared/image-prompt.mjs';
 import { trackOutboundArtifactProviderPromise } from '../shared/semantic/artifact.mjs';
 import { createWhatsappBridgeStatus, WhatsappHarnessBridge } from './whatsapp-bridge.mjs';
-import { enrichWhatsappInboundIdentities, resolveWhatsappGroupSubject } from './whatsapp-identity.mjs';
+import { enrichWhatsappInboundIdentities, resolveWhatsappGroupSubject, resolveWhatsappGroupSubjects } from './whatsapp-identity.mjs';
 import {
   gateWhatsappInbound,
   loadWhatsappAccessGrant,
@@ -857,6 +858,47 @@ export class WhatsappRuntime {
       selfChat: true,
     }, text);
     return { sent: true };
+  }
+
+  /**
+   * Sync WhatsApp group subjects into accessGrant.groups[*].title.
+   * @param {string[]|null|undefined} groupJids
+   */
+  async refreshGroupTitles(groupJids) {
+    if (!this.#workspaces || !this.#botId) {
+      const error = new Error('Access grant store is unavailable');
+      error.code = 'access-grant-unavailable';
+      throw error;
+    }
+    const socket = this.#session?.socket;
+    if (!this.#status.ready || !socket) {
+      const error = new Error(t('WhatsApp机器人尚未连接'));
+      error.code = 'bot-not-connected';
+      throw error;
+    }
+    let grant = this.#workspaces.accessGrantFor(this.#botId) ?? emptyAccessGrant();
+    const targets = Array.isArray(groupJids) && groupJids.length > 0
+      ? groupJids
+      : Object.keys(grant.groups ?? {});
+    const missing = targets.filter((jid) => {
+      const title = grant.groups?.[jid]?.title;
+      return typeof jid === 'string' && jid.endsWith('@g.us')
+        && !(typeof title === 'string' && title.trim());
+    });
+    // Always allow forced refresh of explicit jids even when title already set.
+    const forced = Array.isArray(groupJids) && groupJids.length > 0
+      ? targets.filter((jid) => typeof jid === 'string' && jid.endsWith('@g.us'))
+      : missing;
+    const titles = await resolveWhatsappGroupSubjects(socket, forced);
+    let changed = false;
+    for (const [jid, title] of Object.entries(titles)) {
+      const previousTitle = grant.groups?.[jid]?.title ?? '';
+      if (previousTitle === title) continue;
+      grant = ensureGroupBucket(grant, jid, { title });
+      changed = true;
+    }
+    if (changed) await this.#workspaces.setAccessGrant(this.#botId, grant);
+    return grant;
   }
 
   async sendProactiveText(target, text, { signal } = {}) {

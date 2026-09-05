@@ -483,6 +483,7 @@ const CSS = String.raw`
 .dim-accessGroupHeading { min-width: 0; display: grid; gap: 2px; }
 .dim-accessGroupHeading h3 { margin: 0; color: var(--dsw-alias-label-primary, #1f2329); font-size: 14px; line-height: 21px; font-weight: 650; }
 .dim-accessGroupJid { color: var(--dsw-alias-label-tertiary, #8f959e); font-size: 11px; line-height: 16px; overflow-wrap: anywhere; }
+.dim-accessGroupTitleRow { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 10px; align-items: end; }
 .dim-accessNickname { display: block; margin-top: 4px; color: var(--dsw-alias-label-secondary, #646a73); font-size: 12px; line-height: 18px; font-weight: 560; }
 .dim-accessNicknameEmpty { color: var(--dsw-alias-label-tertiary, #8f959e); font-weight: 400; }
 .dim-accessUserRow { position: relative; z-index: 0; overflow: visible; }

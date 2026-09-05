@@ -241,18 +241,86 @@ export async function enrichWhatsappInboundIdentities(message, raw, {
 
 /**
  * Resolve a WhatsApp group subject for display / access-grant group cards.
- * @param {{ groupMetadata?: (jid: string) => Promise<{ subject?: string }> }|null|undefined} socket
+ * Tries groupMetadata first, then groupFetchAllParticipating as a linked-device fallback.
+ * @param {object|null|undefined} socket
  * @param {string} groupJid
  * @returns {Promise<string>}
  */
 export async function resolveWhatsappGroupSubject(socket, groupJid) {
-  if (!socket || typeof socket.groupMetadata !== 'function') return '';
-  if (typeof groupJid !== 'string' || !groupJid.endsWith('@g.us')) return '';
-  try {
-    const meta = await socket.groupMetadata(groupJid);
-    const subject = typeof meta?.subject === 'string' ? meta.subject.trim() : '';
-    return subject.slice(0, 128);
-  } catch {
+  if (!socket || typeof groupJid !== 'string' || !groupJid.endsWith('@g.us')) return '';
+
+  const fromMeta = (meta) => {
+    for (const key of ['subject', 'name', 'topic']) {
+      if (typeof meta?.[key] === 'string' && meta[key].trim()) {
+        return meta[key].trim().slice(0, 128);
+      }
+    }
     return '';
+  };
+
+  if (typeof socket.groupMetadata === 'function') {
+    try {
+      const subject = fromMeta(await socket.groupMetadata(groupJid));
+      if (subject) return subject;
+    } catch {
+      // Fall through to participating catalog.
+    }
   }
+
+  if (typeof socket.groupFetchAllParticipating === 'function') {
+    try {
+      const catalog = await socket.groupFetchAllParticipating();
+      if (catalog && typeof catalog === 'object') {
+        const direct = fromMeta(catalog[groupJid]);
+        if (direct) return direct;
+        for (const meta of Object.values(catalog)) {
+          if (meta?.id === groupJid || meta?.id === groupJid.replace(/@g\.us$/i, '')) {
+            const subject = fromMeta(meta);
+            if (subject) return subject;
+          }
+        }
+      }
+    } catch {
+      return '';
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Resolve many group subjects in one participating fetch when possible.
+ * @param {object|null|undefined} socket
+ * @param {string[]} groupJids
+ * @returns {Promise<Record<string, string>>}
+ */
+export async function resolveWhatsappGroupSubjects(socket, groupJids) {
+  const jids = [...new Set((Array.isArray(groupJids) ? groupJids : [])
+    .filter((jid) => typeof jid === 'string' && jid.endsWith('@g.us')))];
+  /** @type {Record<string, string>} */
+  const titles = {};
+  if (!socket || jids.length === 0) return titles;
+
+  let catalog = null;
+  if (typeof socket.groupFetchAllParticipating === 'function') {
+    try {
+      catalog = await socket.groupFetchAllParticipating();
+    } catch {
+      catalog = null;
+    }
+  }
+
+  for (const jid of jids) {
+    let title = '';
+    if (catalog && typeof catalog === 'object') {
+      const meta = catalog[jid]
+        ?? Object.values(catalog).find((entry) => entry?.id === jid);
+      if (typeof meta?.subject === 'string' && meta.subject.trim()) {
+        title = meta.subject.trim().slice(0, 128);
+      }
+    }
+    if (!title) title = await resolveWhatsappGroupSubject(socket, jid);
+    if (title) titles[jid] = title;
+  }
+  return titles;
 }

@@ -17,6 +17,7 @@ export const WHATSAPP_ENDPOINTS = Object.freeze({
   setAccessPolicy: 'bot.access-policy.set',
   setAccessGrant: 'bot.access-grant.set',
   resolveAccessPending: 'bot.access-pending.resolve',
+  refreshAccessGroupTitles: 'bot.access-group-titles.refresh',
   setGroupSessionScope: 'bot.group-session-scope.set',
   setWorkspace: 'bot.workspace.set',
   setAgentPreset: SET_AGENT_PRESET_ENDPOINT,

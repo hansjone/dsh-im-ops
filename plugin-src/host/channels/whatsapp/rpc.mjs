@@ -3,9 +3,11 @@ import QRCode from 'qrcode';
 import { publicConnectionTestResult } from '../../../../src/channels/shared/connection-test.mjs';
 import { SET_ACCESS_POLICY_ENDPOINT, validAccessPolicyPayload } from '../shared/access-policy-rpc.mjs';
 import {
+  REFRESH_ACCESS_GROUP_TITLES_ENDPOINT,
   RESOLVE_ACCESS_PENDING_ENDPOINT,
   SET_ACCESS_GRANT_ENDPOINT,
   validAccessGrantPayload,
+  validAccessGroupTitlesRefreshPayload,
   validAccessPendingResolvePayload,
 } from '../shared/access-grant-rpc.mjs';
 import { SET_GROUP_SESSION_SCOPE_ENDPOINT, validGroupSessionScopePayload } from '../shared/group-session-scope-rpc.mjs';
@@ -25,6 +27,7 @@ export const WHATSAPP_ENDPOINTS = Object.freeze({
   setAccessPolicy: SET_ACCESS_POLICY_ENDPOINT,
   setAccessGrant: SET_ACCESS_GRANT_ENDPOINT,
   resolveAccessPending: RESOLVE_ACCESS_PENDING_ENDPOINT,
+  refreshAccessGroupTitles: REFRESH_ACCESS_GROUP_TITLES_ENDPOINT,
   setGroupSessionScope: SET_GROUP_SESSION_SCOPE_ENDPOINT,
   setWorkspace: SET_WORKSPACE_ENDPOINT,
   setAgentPreset: SET_AGENT_PRESET_ENDPOINT,
@@ -75,6 +78,10 @@ function payloadFailure(endpoint, payload) {
   if (endpoint === WHATSAPP_ENDPOINTS.resolveAccessPending) {
     return validAccessPendingResolvePayload(payload)
       ? null : '请提交有效的审批请求。';
+  }
+  if (endpoint === WHATSAPP_ENDPOINTS.refreshAccessGroupTitles) {
+    return validAccessGroupTitlesRefreshPayload(payload)
+      ? null : '请提交有效的群名同步请求。';
   }
   if (endpoint === WHATSAPP_ENDPOINTS.setGroupSessionScope) {
     return validGroupSessionScopePayload(payload)
@@ -229,6 +236,14 @@ export function createWhatsappRpcHandler(controller, { encodeQr = qrDataUrl } = 
             resolvedByPhone: payload.resolvedByPhone,
           },
           (status) => publicStatus(status, cachedEncode),
+        );
+      } else if (endpoint === WHATSAPP_ENDPOINTS.refreshAccessGroupTitles) {
+        if (typeof controller.refreshAccessGroupTitles !== 'function') {
+          throw new Error('Group title refresh is unavailable');
+        }
+        value = await publicStatus(
+          await controller.refreshAccessGroupTitles(payload.botId, payload.groupJids),
+          cachedEncode,
         );
       } else if (endpoint === WHATSAPP_ENDPOINTS.setGroupSessionScope) {
         if (typeof controller.updateGroupSessionScope !== 'function') throw new Error('Group session scope update is unavailable');

@@ -11,6 +11,12 @@ const EN = Object.freeze({
   '机器人设置页签': 'Bot settings tabs',
   '投递设置': 'Delivery settings',
   '访问设置': 'Access settings',
+  "请提交有效的群名同步请求。": "Submit a valid group-name sync request.",
+  "同步群名失败，请稍后重试。": "Could not sync the group name. Try again later.",
+  "未能从 WhatsApp 读取群名，请确认机器人在线且仍在该群。": "Could not read the group name from WhatsApp. Confirm the bot is online and still in the group.",
+  "已同步群名：": "Synced group name: ",
+  "同步群名": "Sync group name",
+  "未命名群": "Unnamed group",
   "暂无昵称（私聊/@ 后会自动补齐）": "No nickname yet (filled after DM or @mention)",
   "群聊 · ": "Group · ",
 

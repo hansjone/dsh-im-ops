@@ -238,6 +238,22 @@ export class WhatsappController {
     });
   }
 
+  async refreshAccessGroupTitles(botId, groupJids) {
+    if (this.#closed) throw new Error('WhatsApp controller is closed');
+    return this.#withBotTransition(botId, async () => {
+      if (this.#closed) throw new Error('WhatsApp controller is closed');
+      const runtime = this.#runtimes.get(botId);
+      if (!runtime || typeof runtime.refreshGroupTitles !== 'function') {
+        const error = new Error(t('WhatsApp机器人尚未连接'));
+        error.code = 'bot-not-connected';
+        throw error;
+      }
+      await runtime.refreshGroupTitles(groupJids);
+      this.#touch();
+      return this.status();
+    });
+  }
+
   async setAccessPolicy(botId, value) {
     if (this.#closed) throw new Error('WhatsApp controller is closed');
     const accessPolicy = normalizeWhatsappAccessPolicy(value);

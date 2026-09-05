@@ -2,6 +2,7 @@ import { validateAccessGrant, normalizeAccessGrant } from '../../../../src/chann
 
 export const SET_ACCESS_GRANT_ENDPOINT = 'bot.access-grant.set';
 export const RESOLVE_ACCESS_PENDING_ENDPOINT = 'bot.access-pending.resolve';
+export const REFRESH_ACCESS_GROUP_TITLES_ENDPOINT = 'bot.access-group-titles.refresh';
 
 export function validAccessGrantPayload(payload) {
   try {
@@ -36,6 +37,21 @@ export function validAccessPendingResolvePayload(payload) {
       return false;
     }
     return true;
+  } catch {
+    return false;
+  }
+}
+
+export function validAccessGroupTitlesRefreshPayload(payload) {
+  try {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false;
+    if (!Object.hasOwn(payload, 'botId') || typeof payload.botId !== 'string'
+      || !/^[A-Za-z0-9_-]{1,128}$/.test(payload.botId)) return false;
+    const keys = Reflect.ownKeys(payload);
+    if (keys.length === 1) return true;
+    if (keys.length !== 2 || !Object.hasOwn(payload, 'groupJids')) return false;
+    if (!Array.isArray(payload.groupJids)) return false;
+    return payload.groupJids.every((jid) => typeof jid === 'string' && /^\d{5,32}@g\.us$/.test(jid));
   } catch {
     return false;
   }

@@ -14,6 +14,7 @@ import { h, localizeText } from './i18n.js';
 
 export const ACCESS_GRANT_ENDPOINT = 'bot.access-grant.set';
 export const ACCESS_PENDING_RESOLVE_ENDPOINT = 'bot.access-pending.resolve';
+export const ACCESS_GROUP_TITLES_REFRESH_ENDPOINT = 'bot.access-group-titles.refresh';
 export const GROUP_SESSION_SCOPE_ENDPOINT = 'bot.group-session-scope.set';
 
 function unwrapRpcResult(result) {
@@ -88,10 +89,7 @@ function NicknameHint({ contacts, phone }) {
 function groupDisplayName(groupJid, groups) {
   const title = groups?.[groupJid]?.title;
   if (typeof title === 'string' && title.trim()) return title.trim();
-  const raw = String(groupJid ?? '');
-  const id = raw.replace(/@g\.us$/i, '');
-  if (id.length > 14) return `${id.slice(0, 10)}…@g.us`;
-  return raw || '未知群';
+  return '未命名群';
 }
 
 function digitsOnly(value) {
@@ -300,13 +298,37 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
         const bot = Array.isArray(value?.bots)
           ? value.bots.find((entry) => entry?.botId === account.botId)
           : null;
-        const grant = normalizeAccessGrant(bot?.accessGrant);
+        let grant = normalizeAccessGrant(bot?.accessGrant);
         if (grant) {
           setDraft(cloneGrant(grant, ownerPhone));
           onSaved?.(grant);
         }
         if (bot?.groupSessionScope) {
           setGroupSessionScope(normalizeGroupSessionScope(bot.groupSessionScope));
+        }
+
+        const missingTitles = Object.entries(grant?.groups ?? {})
+          .filter(([, group]) => !(typeof group?.title === 'string' && group.title.trim()))
+          .map(([jid]) => jid);
+        const pendingGroupJids = (grant?.pending ?? [])
+          .map((entry) => entry.groupJid)
+          .filter((jid) => typeof jid === 'string' && jid.endsWith('@g.us'));
+        const toSync = [...new Set([...missingTitles, ...pendingGroupJids])];
+        if (toSync.length > 0) {
+          try {
+            const refreshed = unwrapRpcResult(await rpcCall(ACCESS_GROUP_TITLES_REFRESH_ENDPOINT, {
+              botId: account.botId,
+              groupJids: toSync,
+            }));
+            if (cancelled) return;
+            const next = grantFromSnapshot(refreshed, account.botId);
+            if (next) {
+              setDraft(cloneGrant(next, ownerPhone));
+              onSaved?.(next);
+            }
+          } catch {
+            // Title sync is best-effort while the bot is offline.
+          }
         }
       } catch (error) {
         if (!cancelled) {
@@ -485,20 +507,54 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
             h('div', { className: 'dim-accessGroupHeading' },
               h('h3', null, groupDisplayName(groupJid, draft.groups)),
               h('code', { className: 'dim-accessGroupJid' }, groupJid)),
-            h('label', { className: 'dim-accessField' },
-              h('span', null, '群名称'),
-              h('input', {
-                value: group.title ?? '',
-                maxLength: 128,
-                placeholder: '填写便于识别的群名称',
-                onChange: (event) => setDraft((current) => ({
-                  ...current,
-                  groups: {
-                    ...current.groups,
-                    [groupJid]: { ...group, title: event.target.value },
-                  },
+            h('div', { className: 'dim-accessGroupTitleRow' },
+              h('label', { className: 'dim-accessField' },
+                h('span', null, '群名称'),
+                h('input', {
+                  value: group.title ?? '',
+                  maxLength: 128,
+                  placeholder: '填写便于识别的群名称',
+                  onChange: (event) => setDraft((current) => ({
+                    ...current,
+                    groups: {
+                      ...current.groups,
+                      [groupJid]: { ...group, title: event.target.value },
+                    },
+                  })),
                 })),
-              })),
+              h('button', {
+                type: 'button',
+                className: 'dim-deliveryButton',
+                disabled: saving,
+                onClick: () => void (async () => {
+                  setSaving(true);
+                  setFeedback(null);
+                  try {
+                    const refreshed = unwrapRpcResult(await rpcCall(
+                      ACCESS_GROUP_TITLES_REFRESH_ENDPOINT,
+                      { botId: account.botId, groupJids: [groupJid] },
+                    ));
+                    const next = grantFromSnapshot(refreshed, account.botId);
+                    if (!next) throw new Error('服务没有返回已保存的访问授权。');
+                    setDraft(cloneGrant(next, ownerPhone));
+                    onSaved?.(next);
+                    const title = next.groups?.[groupJid]?.title;
+                    setFeedback({
+                      tone: title ? 'success' : 'error',
+                      message: title
+                        ? ['已同步群名：', title].join('')
+                        : '未能从 WhatsApp 读取群名，请确认机器人在线且仍在该群。',
+                    });
+                  } catch (error) {
+                    setFeedback({
+                      tone: 'error',
+                      message: error?.message || '同步群名失败，请稍后重试。',
+                    });
+                  } finally {
+                    setSaving(false);
+                  }
+                }),
+              }, '同步群名')),
             h(AdminPhones, {
               title: '本群管理员',
               help: '未配置时，本群申请回落给全局管理员审批（仍只授予本群权）。',
