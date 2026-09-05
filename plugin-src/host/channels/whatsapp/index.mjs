@@ -17,7 +17,20 @@ export async function apply(ctx, config = {}) {
     config.rpcOptions,
     config.rpcAuthority,
   );
+  let unregisterPeer = () => {};
+  try {
+    const dshIm = typeof ctx.get === 'function' ? ctx.get('dshIm') : undefined;
+    if (dshIm && typeof dshIm.registerPeerResolver === 'function'
+      && typeof production.controller?.resolveChannelPeer === 'function') {
+      unregisterPeer = dshIm.registerPeerResolver((sessionId) => (
+        production.controller.resolveChannelPeer(sessionId)
+      ));
+    }
+  } catch {
+    // dshIm optional during partial boots
+  }
   ctx.effect(() => async () => {
+    unregisterPeer?.();
     await unregisterDelivery?.();
     await production.close();
   }, 'dsh-im: close WhatsApp Web connections');

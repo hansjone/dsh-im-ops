@@ -1,7 +1,7 @@
 {
   "name": "dsh-im-ops",
-  "version": "4.9.1-ops.22",
-  "description": "Ops fork of dsh-im (all channels kept). Based on @xmanrui/dsh-im@4.9.1 â€” access/session policies owned here.",
+  "version": "4.9.1-ops.23",
+  "description": "Ops fork of dsh-im (all channels kept). Based on @xmanrui/dsh-im@4.9.1 â€?access/session policies owned here.",
   "keywords": [
     "deepseek-harness",
     "dsh",

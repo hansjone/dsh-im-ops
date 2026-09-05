@@ -62,12 +62,39 @@ export function createImHostPlugin(internals = {}) {
     inject,
     async apply(ctx, config = {}) {
       const deliveryService = makeDeliveryService();
+      const peerResolvers = [];
       if (typeof ctx?.provide === 'function') {
         ctx.provide('dshIm', Object.freeze({
           send: (botId, targetId, text, options) => (
             deliveryService.send(botId, targetId, text, options)
           ),
           listTargets: async (botId) => (await deliveryService.listTargets(botId)).targets,
+          /**
+           * Resolve the IM channel peer for a Harness session (botId + conversationKey).
+           * Used by ops schedulers to default proactive delivery back to the caller.
+           */
+          resolveSessionPeer: async (sessionId) => {
+            const id = typeof sessionId === 'string' ? sessionId.trim() : '';
+            if (!id) return null;
+            for (const resolve of peerResolvers) {
+              try {
+                const peer = await resolve(id);
+                if (peer && typeof peer.botId === 'string' && peer.botId.trim()) return peer;
+              } catch {
+                // try next channel
+              }
+            }
+            return null;
+          },
+          /** @param {(sessionId: string) => Promise<object|null>} resolve */
+          registerPeerResolver: (resolve) => {
+            if (typeof resolve !== 'function') return () => {};
+            peerResolvers.push(resolve);
+            return () => {
+              const index = peerResolvers.indexOf(resolve);
+              if (index >= 0) peerResolvers.splice(index, 1);
+            };
+          },
         }));
       }
       const activate = async (readyCtx) => {
