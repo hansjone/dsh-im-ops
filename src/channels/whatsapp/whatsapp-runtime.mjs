@@ -12,6 +12,7 @@ import { t } from '../shared/i18n.mjs';
 import { ImagePromptError } from '../shared/image-prompt.mjs';
 import { trackOutboundArtifactProviderPromise } from '../shared/semantic/artifact.mjs';
 import { createWhatsappBridgeStatus, WhatsappHarnessBridge } from './whatsapp-bridge.mjs';
+import { enrichWhatsappInboundIdentities } from './whatsapp-identity.mjs';
 import {
   WHATSAPP_ACCESS_MODES,
 } from './config-store.mjs';
@@ -637,6 +638,7 @@ export class WhatsappRuntime {
   #client = null;
   #bridge = null;
   #starting = null;
+  #lidPnCache = new Map();
 
   constructor({
     config,
@@ -709,11 +711,16 @@ export class WhatsappRuntime {
           { code: 'relink-required' },
         )),
         onMessage: async (raw, context) => {
-          const message = normalizeWhatsappMessage(raw, this.#config.accountJid, {
+          const normalized = normalizeWhatsappMessage(raw, this.#config.accountJid, {
             download: createWhatsappMediaDownloader({
               socket: context?.socket,
               logger: this.#logger,
             }),
+          });
+          const message = await enrichWhatsappInboundIdentities(normalized, raw, {
+            accountJid: this.#config.accountJid,
+            socket: context?.socket ?? this.#session?.socket,
+            lidPnCache: this.#lidPnCache,
           });
           if (!message || outboundIds.has(message.providerMessageId) || !this.#bridge) return;
           this.#status.lastCheckedAt = Date.now();

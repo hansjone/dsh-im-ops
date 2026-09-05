@@ -158,6 +158,7 @@ function createBridge({
   signal,
   logger,
   reactions,
+  groupSessionScope = 'chat',
 } = {}) {
   return new TextHarnessBridge({
     descriptor: { key: 'test', label: 'Test', reactions },
@@ -166,6 +167,7 @@ function createBridge({
     state,
     signal,
     logger: logger ?? { warn() {}, error() {} },
+    groupSessionScope,
   });
 }
 

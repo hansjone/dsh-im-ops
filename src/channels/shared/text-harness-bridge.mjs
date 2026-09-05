@@ -228,7 +228,11 @@ export class TextHarnessBridge {
       const hasFiles = hasInboundFiles(normalized);
       const decision = accessDecision ?? evaluateInboundAccess(this.#accessPolicy, {
         conversationType: kind,
-        senderIds: [senderId, cleanText(normalized.senderAlternateId)].filter(Boolean),
+        senderIds: [
+          senderId,
+          cleanText(normalized.senderAlternateId),
+          ...(Array.isArray(normalized.senderAliasIds) ? normalized.senderAliasIds : []),
+        ].filter(Boolean),
         text: normalized.content,
         hasImages,
         hasFiles,
@@ -244,8 +248,14 @@ export class TextHarnessBridge {
           messageId,
           decision.reason === 'command-not-allowed'
             ? t(COMMAND_PERMISSION_DENIED_MESSAGE)
-            : null,
-          { recordReceived: decision.reason === 'command-not-allowed' },
+            : (decision.reason === 'sender-not-allowed'
+              && (normalized.kind !== 'group' || normalized.addressed === true)
+              ? t('你不在当前机器人的访问白名单中。')
+              : null),
+          {
+            recordReceived: decision.reason === 'command-not-allowed'
+              || decision.reason === 'sender-not-allowed',
+          },
         );
       }
     }
