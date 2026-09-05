@@ -632,16 +632,15 @@ test('new target defaults to recent conversations and selection creates an edita
     payload: { botId: 'bot_feishu_01' },
   });
   const picker = renderer.root.findByProps({ 'aria-label': '从已聊过的会话选择' });
-  const suggestionSelect = picker.findByProps({ name: 'suggestion' });
-  const options = suggestionSelect.findAllByType('option');
-  assert.equal(options.length, 4);
-  const existing = options.find((option) => textOf(option).includes('ou_ex'));
+  const suggestionItems = picker.findAllByProps({ className: 'dim-targetSuggestionItem' });
+  assert.equal(suggestionItems.length, 3);
+  const existing = suggestionItems.find((item) => textOf(item).includes('ou_ex'));
   assert.equal(existing.props.disabled, true);
   assert.match(textOf(existing), /已添加/);
   assert.doesNotMatch(textOf(picker), /ou_existing_secret_123456|ou_new_secret_123456|oc_group_secret_123456/);
 
-  const groupIndex = options.find((option) => textOf(option).includes('oc_gr')).props.value;
-  await act(async () => { suggestionSelect.props.onChange({ target: { value: groupIndex } }); });
+  const groupItem = suggestionItems.find((item) => textOf(item).includes('oc_gr') && !item.props.disabled);
+  await act(async () => { groupItem.props.onClick(); });
   let form = renderer.root.findByType('form');
   const groupTargetId = form.findByProps({ name: 'targetId' }).props.value;
   assert.match(groupTargetId, /^tgt_[0-9a-f]{16}$/);
@@ -673,10 +672,9 @@ test('new target defaults to recent conversations and selection creates an edita
   assert.match(textOf(renderer.root.findByType('form')), /测试消息已发送，请到目标会话确认。/);
 
   await act(async () => { button(renderer.root, '取消').props.onClick(); });
-  const nextSelect = renderer.root.findByProps({ name: 'suggestion' });
-  const userIndex = nextSelect.findAllByType('option')
-    .find((option) => textOf(option).includes('ou_ne')).props.value;
-  await act(async () => { nextSelect.props.onChange({ target: { value: userIndex } }); });
+  const nextItems = renderer.root.findAllByProps({ className: 'dim-targetSuggestionItem' });
+  const userItem = nextItems.find((item) => textOf(item).includes('ou_ne') && !item.props.disabled);
+  await act(async () => { userItem.props.onClick(); });
   form = renderer.root.findByType('form');
   const userTargetId = form.findByProps({ name: 'targetId' }).props.value;
   assert.match(userTargetId, /^tgt_[0-9a-f]{16}$/);
@@ -727,7 +725,7 @@ test('recent conversation picker explains the empty state and refreshes on deman
   });
   assert.match(
     textOf(renderer.root.findByProps({ className: 'dim-targetSuggestions' })),
-    /先在对应平台与机器人聊一条消息，再刷新。/,
+    /先在对应平台与机器人聊一条消息/,
   );
   assert.ok(button(renderer.root, '手动填写（高级）'));
   await act(async () => {
@@ -762,11 +760,11 @@ test('recent conversation names remain platform data in the English UI', async (
     button(renderer.root, 'New target').props.onClick();
     await flush();
   });
-  const select = renderer.root.findByProps({ name: 'suggestion' });
-  assert.match(textOf(select), /飞书项目群/);
-  assert.doesNotMatch(textOf(select), /Feishu项目群/);
+  const picker = renderer.root.findByProps({ className: 'dim-targetSuggestions' });
+  assert.match(textOf(picker), /飞书项目群/);
+  assert.doesNotMatch(textOf(picker), /Feishu项目群/);
   assert.match(
-    textOf(renderer.root.findByProps({ className: 'dim-targetSuggestions' })),
+    textOf(picker),
     /Choose from conversations/,
   );
   const docsLink = renderer.root.findByProps({ className: 'dim-deliveryDocsLink' });

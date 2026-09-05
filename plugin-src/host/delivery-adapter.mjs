@@ -1,4 +1,7 @@
-import { deliverySuggestionsFromSessions } from './delivery-suggestions.mjs';
+import {
+  deliverySuggestionsFromSessions,
+  enrichWhatsappDeliverySuggestions,
+} from './delivery-suggestions.mjs';
 
 const CHANNELS = new Set([
   'weixin',
@@ -145,12 +148,25 @@ export function createDeliveryAdapter({ channel, workspaces, coreController, sta
     channel,
     ownsBot: (botId) => workspaces.has(botId),
     listTargets: (botId) => workspaces.listDeliveryTargets(botId),
+    listAllTargets: () => {
+      if (typeof workspaces.listAllDeliveryTargets !== 'function') return [];
+      return workspaces.listAllDeliveryTargets().map((row) => ({
+        ...row,
+        channel,
+      }));
+    },
     async listSuggestions(botId) {
       const state = await stateFor(botId);
       if (!state || typeof state.snapshot !== 'function') {
         throw new TypeError('delivery suggestion state cannot be inspected');
       }
-      const suggestions = deliverySuggestionsFromSessions(channel, state.snapshot()?.sessions);
+      let suggestions = deliverySuggestionsFromSessions(channel, state.snapshot()?.sessions);
+      if (channel === 'whatsapp' && typeof workspaces.accessGrantFor === 'function') {
+        suggestions = enrichWhatsappDeliverySuggestions(
+          suggestions,
+          workspaces.accessGrantFor(botId),
+        );
+      }
       return suggestions.map((suggestion) => normalizeDeliveryTarget(
         channel,
         suggestion,

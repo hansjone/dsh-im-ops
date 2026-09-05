@@ -20,8 +20,8 @@ const CHANNEL_LABELS = Object.freeze({
 });
 
 /**
- * Session-header chip: channel peer for IM-bound conversations.
- * Renders nothing when the current session is not bound to a channel chat.
+ * Session-header chip: channel peer for IM conversations (live or formerly bound).
+ * Renders nothing when the session has no channel provenance.
  * @param {{
  *   sessionId: string,
  *   resolveChannelPeer?: (sessionId: string, signal?: AbortSignal) => Promise<object|null>,
@@ -67,7 +67,7 @@ export function ChannelPeerLabel({ sessionId, resolveChannelPeer }) {
 
 /**
  * Resolve the channel peer for a session via WhatsApp (ops-first).
- * Returns null when the session is not bound to a WhatsApp conversation.
+ * Works for live bindings and sessions unbound by `/new` (provenance retained).
  * @param {(endpoint: string, payload: object, signal?: AbortSignal) => Promise<unknown>} whatsappRpcCall
  * @param {string} sessionId
  * @param {AbortSignal} [signal]

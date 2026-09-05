@@ -96,6 +96,22 @@ test('DeliveryService shares target CRUD and sending through one adapter', async
   await assert.rejects(service.send('bot_one', 'daily-report', 'missing'), { code: 'unknown-target' });
 });
 
+test('DeliveryService forwards WhatsApp mentions to the adapter', async () => {
+  const service = createDeliveryService();
+  const adapter = memoryAdapter({ channel: 'whatsapp' });
+  service.registerAdapter(adapter);
+  await service.createTarget('bot_one', {
+    targetId: 'ops-group',
+    name: 'Ops',
+    kind: 'group',
+    route: { jid: '120363@g.us' },
+  });
+  const mentions = ['8613800000000@s.whatsapp.net'];
+  await service.send('bot_one', 'ops-group', '@8613800000000 hello', { mentions });
+  assert.equal(adapter.sends.length, 1);
+  assert.deepEqual(adapter.sends[0][3], { signal: undefined, mentions });
+});
+
 test('DeliveryService validates public ids, text, cancellation, and unknown bots', async () => {
   const service = createDeliveryService();
   service.registerAdapter(memoryAdapter());

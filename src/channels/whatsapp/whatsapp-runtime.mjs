@@ -461,9 +461,12 @@ export class WhatsappBotClient {
     this.#mediaUploadTimeoutMs = mediaUploadTimeoutMs;
   }
 
-  async sendText(target, text) {
+  async sendText(target, text, { mentions } = {}) {
     await this.#stopTyping(target.jid);
     const providerMessageIds = [];
+    const mentionList = Array.isArray(mentions)
+      ? mentions.filter((jid) => typeof jid === 'string' && jid.includes('@'))
+      : [];
     for (const [index, chunk] of splitMessageText(text, 4_000).entries()) {
       const messageId = randomBytes(10).toString('hex').toUpperCase();
       const options = {
@@ -478,9 +481,13 @@ export class WhatsappBotClient {
       } else {
         this.#outboundIds.remember(messageId);
       }
+      const content = {
+        text: chunk,
+        ...(index === 0 && mentionList.length > 0 ? { mentions: mentionList } : {}),
+      };
       const result = await this.#socket.sendMessage(
         target.jid,
-        { text: chunk },
+        content,
         options,
       );
       this.#outboundIds.remember(result?.key?.id);
@@ -915,7 +922,7 @@ export class WhatsappRuntime {
     return grant;
   }
 
-  async sendProactiveText(target, text, { signal } = {}) {
+  async sendProactiveText(target, text, { signal, mentions } = {}) {
     const jid = typeof target?.route?.jid === 'string' ? target.route.jid.trim() : '';
     const validUser = target?.kind === 'user'
       && /^[^@\s]+@(s\.whatsapp\.net|lid)$/.test(jid);
@@ -931,7 +938,14 @@ export class WhatsappRuntime {
       throw error;
     }
     signal?.throwIfAborted();
-    return this.#client.sendText({ jid }, text);
+    const mentionList = Array.isArray(mentions)
+      ? mentions.filter((entry) => typeof entry === 'string' && entry.includes('@'))
+      : [];
+    return this.#client.sendText(
+      { jid },
+      text,
+      mentionList.length > 0 ? { mentions: mentionList } : undefined,
+    );
   }
 
   async stop() {

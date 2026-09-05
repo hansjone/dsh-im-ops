@@ -83,6 +83,55 @@ test('resolveChannelPeerFromBinding builds DM and group labels from access grant
   assert.equal(groupShared.label, 'Ops Room');
 });
 
+test('resolveChannelPeerFromBinding exposes agentPreset from grant or bot default', () => {
+  const grant = {
+    version: 1,
+    globalAdmins: ['8618111111111'],
+    directMembers: [
+      { phone: '8618222222222', canExecuteCommands: true, agentPreset: 'ops-dm' },
+    ],
+    groups: {
+      '120363@g.us': {
+        title: 'Ops Room',
+        agentPreset: 'ops-group',
+        admins: [],
+        members: [],
+      },
+    },
+    contacts: [{
+      phone: '8618222222222',
+      lids: ['91010910658657@lid'],
+      pushName: 'Alice',
+    }],
+  };
+  const direct = resolveChannelPeerFromBinding({
+    channel: 'whatsapp',
+    botId: 'bot-1',
+    conversationKey: 'direct:8618222222222@s.whatsapp.net',
+    grant,
+    botAgentPreset: 'bot-default',
+  });
+  assert.equal(direct.agentPreset, 'ops-dm');
+
+  const group = resolveChannelPeerFromBinding({
+    channel: 'whatsapp',
+    botId: 'bot-1',
+    conversationKey: 'group:120363@g.us',
+    grant,
+    botAgentPreset: 'bot-default',
+  });
+  assert.equal(group.agentPreset, 'ops-group');
+
+  const fallback = resolveChannelPeerFromBinding({
+    channel: 'whatsapp',
+    botId: 'bot-1',
+    conversationKey: 'direct:8618999999999@s.whatsapp.net',
+    grant,
+    botAgentPreset: 'bot-default',
+  });
+  assert.equal(fallback.agentPreset, 'bot-default');
+});
+
 test('resolveChannelPeerFromBinding never falls back to raw LID when contact is incomplete', () => {
   const grant = {
     contacts: [{ lids: ['91010910658657@lid'], pushName: 'Bob' }],
@@ -105,7 +154,9 @@ test('resolveChannelPeerFromBinding never falls back to raw LID when contact is 
     conversationKey: 'direct:111222333444@lid',
     grant,
   });
-  assert.equal(unknown, null);
+  assert.equal(unknown?.kind, 'direct');
+  assert.equal(unknown?.label, 'WhatsApp 私聊');
+  assert.doesNotMatch(unknown.label, /@lid|111222333444/);
 
   const groupOnlyLid = resolveChannelPeerFromBinding({
     channel: 'whatsapp',
@@ -139,6 +190,34 @@ test('ConversationStateStore.keyForSession reverses session bindings', async () 
     assert.equal(store.keyForSession('session-a'), 'direct:u1');
     assert.equal(store.keyForSession('session-b'), 'group:g1:user:u2');
     assert.equal(store.keyForSession('missing'), null);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('ConversationStateStore keeps channel provenance after /new-style clearSession', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-im-session-origin-'));
+  try {
+    const path = join(root, 'state.json');
+    const store = await new ConversationStateStore(path).load();
+    await store.setSession('direct:8618222222222@s.whatsapp.net', 'session-old');
+    assert.equal(store.isLiveSession('session-old'), true);
+
+    await store.clearSession('direct:8618222222222@s.whatsapp.net');
+    assert.equal(store.sessionFor('direct:8618222222222@s.whatsapp.net'), null);
+    assert.equal(store.isLiveSession('session-old'), false);
+    // Unbound Harness session must still resolve for DSH channel chip / cron peer.
+    assert.equal(store.keyForSession('session-old'), 'direct:8618222222222@s.whatsapp.net');
+
+    await store.setSession('direct:8618222222222@s.whatsapp.net', 'session-new');
+    assert.equal(store.keyForSession('session-new'), 'direct:8618222222222@s.whatsapp.net');
+    assert.equal(store.keyForSession('session-old'), 'direct:8618222222222@s.whatsapp.net');
+    assert.equal(store.isLiveSession('session-new'), true);
+    assert.equal(store.isLiveSession('session-old'), false);
+
+    const reloaded = await new ConversationStateStore(path).load();
+    assert.equal(reloaded.keyForSession('session-old'), 'direct:8618222222222@s.whatsapp.net');
+    assert.equal(reloaded.keyForSession('session-new'), 'direct:8618222222222@s.whatsapp.net');
   } finally {
     await rm(root, { recursive: true, force: true });
   }

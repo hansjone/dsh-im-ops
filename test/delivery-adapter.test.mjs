@@ -17,7 +17,7 @@ import {
   createDeliveryAdapter,
   normalizeDeliveryTarget,
 } from '../plugin-src/host/delivery-adapter.mjs';
-import { deliverySuggestionsFromSessions } from '../plugin-src/host/delivery-suggestions.mjs';
+import { deliverySuggestionsFromSessions, enrichWhatsappDeliverySuggestions } from '../plugin-src/host/delivery-suggestions.mjs';
 
 const TARGETS = {
   weixin: { targetId: 'daily', kind: 'user', route: { toUserId: 'wx-user' } },
@@ -204,6 +204,57 @@ test('delivery adapter delegates target CRUD to the existing workspace store', a
     }],
     ['delete', 'bot-one', 'ops'],
   ]);
+});
+
+test('whatsapp suggestions prefer nickname+phone and include access-grant groups', () => {
+  const sessions = {
+    'direct:910123456789012@lid': 'session-lid-only',
+    'direct:8613800000001@s.whatsapp.net': 'session-phone',
+    'group:120363000000000001@g.us': 'session-group',
+  };
+  const fromSessions = deliverySuggestionsFromSessions('whatsapp', sessions);
+  const enriched = enrichWhatsappDeliverySuggestions(fromSessions, {
+    contacts: [
+      { phone: '8613800000001', lids: ['910123456789012'], pushName: '张三' },
+      { phone: '8613800000002', lids: [], pushName: '李四' },
+      { lids: ['999888777666555'], pushName: '只有LID' },
+    ],
+    groups: {
+      '120363000000000001@g.us': { title: '运维告警群', admins: [], members: [] },
+      '120363000000000099@g.us': { title: '未聊过的群', admins: [], members: [] },
+    },
+  });
+  assert.deepEqual(enriched, [
+    {
+      kind: 'group',
+      route: { jid: '120363000000000099@g.us' },
+      name: '未聊过的群',
+    },
+    {
+      kind: 'group',
+      route: { jid: '120363000000000001@g.us' },
+      name: '运维告警群',
+    },
+    {
+      kind: 'user',
+      route: { jid: '8613800000002@s.whatsapp.net' },
+      name: '李四 · 8613800000002',
+    },
+    {
+      kind: 'user',
+      route: { jid: '8613800000001@s.whatsapp.net' },
+      name: '张三 · 8613800000001',
+    },
+    {
+      kind: 'user',
+      route: { jid: '999888777666555@lid' },
+      name: '只有LID',
+    },
+  ]);
+  assert.equal(
+    enriched.some((row) => row.route.jid.endsWith('@lid') && row.route.jid.startsWith('910')),
+    false,
+  );
 });
 
 test('suggestion parser strictly filters malformed keys, de-duplicates routes, and never leaks state values', () => {

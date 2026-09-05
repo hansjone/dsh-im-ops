@@ -1,7 +1,56 @@
 import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-const EMPTY_STATE = Object.freeze({ version: 1, sessions: {}, seenMessageIds: [], cursor: null });
+const EMPTY_STATE = Object.freeze({
+  version: 1,
+  sessions: {},
+  sessionOrigins: {},
+  seenMessageIds: [],
+  cursor: null,
+});
+
+/** Cap unbound+bound provenance so bot state files stay bounded. */
+const MAX_SESSION_ORIGINS = 2_000;
+
+/**
+ * @param {unknown} value
+ * @returns {Record<string, string>}
+ */
+function normalizeOrigins(value) {
+  const origins = Object.create(null);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return origins;
+  for (const [sessionId, conversationKey] of Object.entries(value)) {
+    if (typeof sessionId !== 'string' || !sessionId) continue;
+    if (typeof conversationKey !== 'string' || !conversationKey) continue;
+    origins[sessionId] = conversationKey;
+  }
+  return origins;
+}
+
+/**
+ * Seed provenance from live bindings so older state files gain reverse maps.
+ * @param {Record<string, string>} sessions
+ * @param {Record<string, string>} origins
+ */
+function mergeLiveIntoOrigins(sessions, origins) {
+  for (const [conversationKey, sessionId] of Object.entries(sessions)) {
+    if (typeof conversationKey === 'string' && conversationKey
+      && typeof sessionId === 'string' && sessionId) {
+      origins[sessionId] = conversationKey;
+    }
+  }
+}
+
+/**
+ * Drop oldest provenance entries when over the cap (insertion order).
+ * @param {Record<string, string>} origins
+ */
+function pruneOrigins(origins) {
+  const ids = Object.keys(origins);
+  if (ids.length <= MAX_SESSION_ORIGINS) return;
+  const drop = ids.length - MAX_SESSION_ORIGINS;
+  for (let i = 0; i < drop; i += 1) delete origins[ids[i]];
+}
 
 function normalizeState(value) {
   if (!value || typeof value !== 'object') return structuredClone(EMPTY_STATE);
@@ -13,9 +62,13 @@ function normalizeState(value) {
       }
     }
   }
+  const sessionOrigins = normalizeOrigins(value.sessionOrigins);
+  mergeLiveIntoOrigins(sessions, sessionOrigins);
+  pruneOrigins(sessionOrigins);
   return {
     version: 1,
     sessions,
+    sessionOrigins,
     seenMessageIds: Array.isArray(value.seenMessageIds)
       ? value.seenMessageIds.filter((id) => typeof id === 'string' && id).slice(-1_000)
       : [],
@@ -49,6 +102,8 @@ export class ConversationStateStore {
 
   /**
    * Reverse-map a Harness session id to its conversation binding key.
+   * Live bindings win; unbound sessions still resolve via sessionOrigins
+   * so DSH can show channel provenance after `/new`.
    * @param {string} sessionId
    * @returns {string|null}
    */
@@ -57,20 +112,40 @@ export class ConversationStateStore {
     for (const [key, bound] of Object.entries(this.#state.sessions)) {
       if (bound === sessionId) return key;
     }
-    return null;
+    const former = this.#state.sessionOrigins?.[sessionId];
+    return typeof former === 'string' && former ? former : null;
+  }
+
+  /**
+   * Whether this session id is the live binding for its conversation key.
+   * @param {string} sessionId
+   * @returns {boolean}
+   */
+  isLiveSession(sessionId) {
+    if (typeof sessionId !== 'string' || !sessionId) return false;
+    for (const bound of Object.values(this.#state.sessions)) {
+      if (bound === sessionId) return true;
+    }
+    return false;
   }
 
   async setSession(key, sessionId) {
     this.#state.sessions[key] = sessionId;
+    if (typeof sessionId === 'string' && sessionId) {
+      this.#state.sessionOrigins[sessionId] = key;
+      pruneOrigins(this.#state.sessionOrigins);
+    }
     await this.#persist();
   }
 
   async clearSession(key) {
+    // Keep sessionOrigins so unbound Harness sessions still show channel peer.
     delete this.#state.sessions[key];
     await this.#persist();
   }
 
   async clearSessions() {
+    // Workspace switches drop live chat→session maps only; provenance stays.
     this.#state.sessions = {};
     await this.#persist();
   }

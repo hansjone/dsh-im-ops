@@ -422,6 +422,30 @@ export class BotWorkspaceStore {
       .sort((left, right) => left.targetId.localeCompare(right.targetId));
   }
 
+  /**
+   * Flat catalog of every saved delivery target across bots still present
+   * in this workspace store (used by ops schedulers for picker UIs).
+   */
+  listAllDeliveryTargets() {
+    const rows = [];
+    for (const botId of Object.keys(this.#deliveryTargets)) {
+      if (!this.has(botId)) continue;
+      for (const target of this.listDeliveryTargets(botId)) {
+        rows.push({
+          botId,
+          targetId: target.targetId,
+          name: target.name || target.targetId,
+          kind: target.kind,
+        });
+      }
+    }
+    rows.sort((left, right) => (
+      left.botId.localeCompare(right.botId)
+      || left.targetId.localeCompare(right.targetId)
+    ));
+    return rows;
+  }
+
   deliveryTargetFor(botId, targetId) {
     const id = botIdOf(botId);
     const targetKey = targetIdOf(targetId);
@@ -1705,6 +1729,7 @@ export function createWorkspaceAwareController(controller, {
         botId,
         conversationKey,
         grant: workspaces.accessGrantFor(botId),
+        botAgentPreset: workspaces.agentPresetFor(botId),
       });
     }
     return null;

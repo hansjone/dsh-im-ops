@@ -425,6 +425,13 @@ body[data-ds-dark-theme] .dim-page select option, body[data-ds-dark-theme] .dim-
 .dim-targetSuggestionField { min-width: 0; display: grid; gap: 5px; margin-top: 12px; color: var(--dsw-alias-label-secondary, #646a73); font-size: 11px; line-height: 16px; }
 .dim-targetSuggestionField select { width: 100%; min-width: 0; height: 38px; padding: 0 10px; border: 1px solid var(--dsw-alias-border-l2, #dfe1e5); border-radius: 8px; color: var(--dsw-alias-label-primary, #1f2329); background: var(--dsw-alias-bg-layer-1, #fff); font: inherit; font-size: 12px; cursor: pointer; }
 .dim-targetSuggestionField select:focus { outline: 2px solid color-mix(in srgb, var(--dsw-alias-state-business-primary, #3370ff) 28%, transparent); border-color: var(--dsw-alias-state-business-primary, #3370ff); }
+.dim-targetSuggestionList { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; max-height: 280px; overflow: auto; }
+.dim-targetSuggestionItem { width: 100%; box-sizing: border-box; display: grid; gap: 2px; text-align: left; padding: 10px 12px; border: 1px solid var(--dsw-alias-border-l2, #dfe1e5); border-radius: 8px; background: var(--dsw-alias-bg-layer-1, #fff); color: inherit; font: inherit; cursor: pointer; }
+.dim-targetSuggestionItem:hover:not(:disabled) { border-color: var(--dsw-alias-state-business-primary, #3370ff); }
+.dim-targetSuggestionItem:disabled { opacity: 0.55; cursor: not-allowed; }
+.dim-targetSuggestionItem strong { color: var(--dsw-alias-label-primary, #1f2329); font-size: 13px; line-height: 20px; font-weight: 600; }
+.dim-targetSuggestionItem span { color: var(--dsw-alias-label-secondary, #646a73); font-size: 11px; line-height: 16px; }
+.dim-targetSuggestionItem code { color: var(--dsw-alias-label-tertiary, #8f959e); font-size: 11px; line-height: 16px; word-break: break-all; }
 .dim-targetForm { margin-top: 14px; padding: 14px; border: 1px solid var(--dsw-alias-border-l2, #dfe1e5); border-radius: 10px; background: var(--dsw-alias-bg-module-platform, #f7f8fa); }
 .dim-targetFormHeading h3 { margin: 0; font-size: 14px; line-height: 21px; }
 .dim-targetFormHeading p { margin: 2px 0 0; color: var(--dsw-alias-label-secondary, #646a73); font-size: 11px; line-height: 17px; }

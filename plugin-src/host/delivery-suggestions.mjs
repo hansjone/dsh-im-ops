@@ -133,3 +133,136 @@ export function deliverySuggestionsFromSessions(channel, sessions) {
   }
   return suggestions;
 }
+
+function clipName(value) {
+  if (typeof value !== 'string') return '';
+  const text = value.trim().replace(/\s+/g, ' ');
+  return text ? text.slice(0, 80) : '';
+}
+
+/** Prefer「昵称 · 电话」so ops pickers can tell people apart. */
+export function whatsappUserDisplayName(pushName, phone) {
+  const nick = clipName(pushName);
+  const number = typeof phone === 'string' ? phone.trim() : '';
+  if (nick && number) return clipName(`${nick} · ${number}`);
+  if (nick) return nick;
+  if (number) return number;
+  return '';
+}
+
+function whatsappGroupDisplayName(title, jid) {
+  const name = clipName(title);
+  if (name) return name;
+  const raw = typeof jid === 'string' ? jid.trim() : '';
+  if (!raw) return '';
+  const local = raw.includes('@') ? raw.slice(0, raw.indexOf('@')) : raw;
+  if (local.length <= 10) return clipName(`群 · ${local}`);
+  return clipName(`群 · ${local.slice(0, 6)}…${local.slice(-4)}`);
+}
+
+function suggestionKey(suggestion) {
+  return `${suggestion?.kind ?? ''}\0${suggestion?.route?.jid ?? ''}`;
+}
+
+/**
+ * Merge WhatsApp session routes with access-grant contacts/groups so the
+ * delivery picker shows nickname+phone and known groups, not only opaque JIDs.
+ *
+ * @param {Array<{ kind: string, route: { jid: string }, name?: string }>} sessionSuggestions
+ * @param {object|null|undefined} grant - WhatsApp accessGrant document
+ * @returns {Array<{ kind: string, route: { jid: string }, name?: string }>}
+ */
+export function enrichWhatsappDeliverySuggestions(sessionSuggestions, grant) {
+  const byKey = new Map();
+  const lidToPhone = new Map();
+  const contacts = Array.isArray(grant?.contacts) ? grant.contacts : [];
+  for (const contact of contacts) {
+    const phone = typeof contact?.phone === 'string' ? contact.phone.trim() : '';
+    if (!phone) continue;
+    for (const lid of Array.isArray(contact.lids) ? contact.lids : []) {
+      const id = typeof lid === 'string' ? lid.trim() : '';
+      if (id) lidToPhone.set(id, phone);
+    }
+  }
+
+  const put = (suggestion) => {
+    if (!suggestion?.kind || !suggestion?.route?.jid) return;
+    const key = suggestionKey(suggestion);
+    const previous = byKey.get(key);
+    if (!previous) {
+      byKey.set(key, suggestion);
+      return;
+    }
+    if (!previous.name && suggestion.name) byKey.set(key, { ...previous, name: suggestion.name });
+    else if (previous.name && suggestion.name && suggestion.name.length > previous.name.length) {
+      byKey.set(key, { ...previous, name: suggestion.name });
+    }
+  };
+
+  for (const raw of Array.isArray(sessionSuggestions) ? sessionSuggestions : []) {
+    if (raw?.kind === 'user' && typeof raw?.route?.jid === 'string') {
+      const jid = raw.route.jid;
+      const lidMatch = /^(\d{5,32})@lid$/.exec(jid);
+      if (lidMatch) {
+        const phone = lidToPhone.get(lidMatch[1]);
+        if (phone) {
+          put({
+            kind: 'user',
+            route: { jid: `${phone}@s.whatsapp.net` },
+            ...(raw.name ? { name: clipName(raw.name) } : {}),
+          });
+          continue;
+        }
+      }
+    }
+    put({
+      kind: raw.kind,
+      route: { jid: raw.route.jid },
+      ...(raw.name ? { name: clipName(raw.name) } : {}),
+    });
+  }
+
+  for (const contact of contacts) {
+    const phone = typeof contact?.phone === 'string' ? contact.phone.trim() : '';
+    const lids = Array.isArray(contact?.lids)
+      ? contact.lids.map((lid) => String(lid ?? '').trim()).filter(Boolean)
+      : [];
+    const name = whatsappUserDisplayName(contact?.pushName, phone);
+    if (phone) {
+      put({
+        kind: 'user',
+        route: { jid: `${phone}@s.whatsapp.net` },
+        ...(name ? { name } : {}),
+      });
+      continue;
+    }
+    for (const lid of lids.slice(0, 1)) {
+      put({
+        kind: 'user',
+        route: { jid: `${lid}@lid` },
+        ...(name ? { name } : {}),
+      });
+    }
+  }
+
+  const groups = grant?.groups && typeof grant.groups === 'object' && !Array.isArray(grant.groups)
+    ? grant.groups
+    : {};
+  for (const [groupJid, entry] of Object.entries(groups)) {
+    if (typeof groupJid !== 'string' || !/^\d{5,32}(?:-\d{1,32})?@g\.us$/.test(groupJid)) continue;
+    const name = whatsappGroupDisplayName(entry?.title, groupJid);
+    put({
+      kind: 'group',
+      route: { jid: groupJid },
+      ...(name ? { name } : {}),
+    });
+  }
+
+  const rows = [...byKey.values()];
+  rows.sort((left, right) => (
+    String(left.kind).localeCompare(String(right.kind))
+    || String(left.name || '').localeCompare(String(right.name || ''), 'zh')
+    || String(left.route.jid).localeCompare(String(right.route.jid))
+  ));
+  return rows;
+}

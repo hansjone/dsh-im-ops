@@ -69,6 +69,8 @@ export function createImHostPlugin(internals = {}) {
             deliveryService.send(botId, targetId, text, options)
           ),
           listTargets: async (botId) => (await deliveryService.listTargets(botId)).targets,
+          listDeliveryCatalog: async () => deliveryService.listCatalog(),
+          createTarget: (botId, target) => deliveryService.createTarget(botId, target),
           /**
            * Resolve the IM channel peer for a Harness session (botId + conversationKey).
            * Used by ops schedulers to default proactive delivery back to the caller.

@@ -325,7 +325,7 @@ function TargetForm({
           value: name,
           disabled: testing,
           maxLength: 80,
-          placeholder: '例如 每日汇报群',
+          placeholder: definition.label === 'WhatsApp' ? '例如 张三 · 13800138000' : '例如 每日汇报群',
           onChange: (event) => setName(event.target.value),
         })),
       h('label', { className: 'dim-targetField' },
@@ -386,13 +386,12 @@ function TargetForm({
 }
 
 function suggestionOptionLabel(definition, suggestion, added) {
-  const name = suggestionDisplayName(suggestion);
+  const name = suggestionDisplayName(suggestion) || suggestionFallbackName(definition, suggestion);
   const type = localizeText(kindLabel(definition, suggestion.kind));
-  const route = fieldsFor(definition, suggestion.kind)
-    .map((field) => maskRouteValue(suggestion.route?.[field.key]))
-    .filter(Boolean)
-    .join(' · ');
-  return [name, type, route, added ? localizeText('已添加') : null]
+  const firstField = fieldsFor(definition, suggestion.kind)[0];
+  const route = firstField ? String(suggestion.route?.[firstField.key] ?? '').trim() : '';
+  const showRoute = route && !name.includes(route) && !name.includes(route.split('@')[0] || '');
+  return [name, type, showRoute ? maskRouteValue(route) : null, added ? localizeText('已添加') : null]
     .filter(Boolean)
     .join(' · ');
 }
@@ -409,12 +408,15 @@ function TargetSuggestionPicker({
   onCancel,
 }) {
   const configured = new Set(targets.map((target) => routeIdentity(definition, target)).filter(Boolean));
+  const channelHint = definition.label === 'WhatsApp'
+    ? '会列出已聊过的私聊/群聊，以及访问名单里记住的联系人与群（显示为昵称 · 电话 / 群名）。'
+    : '选择后会自动填写目标信息和调用别名，确认后再保存。';
 
   return h('section', { className: 'dim-targetSuggestions', 'aria-label': '从已聊过的会话选择' },
     h('div', { className: 'dim-targetSuggestionHeading' },
       h('div', null,
         h('h3', null, '从已聊过的会话选择'),
-        h('p', null, '选择后会自动填写目标信息和调用别名，确认后再保存。')),
+        h('p', null, channelHint)),
       h(DeliveryButton, {
         onClick: () => void onRefresh(),
         disabled: phase === 'loading',
@@ -428,28 +430,33 @@ function TargetSuggestionPicker({
         : suggestions.length === 0
           ? h('div', { className: 'dim-targetSuggestionState' },
               h('strong', null, '还没有可选择的会话'),
-              h('p', null, '先在对应平台与机器人聊一条消息，再刷新。'))
-          : h('label', { className: 'dim-targetSuggestionField' },
-              h('span', null, '已聊会话'),
-              h('select', {
-                name: 'suggestion',
-                value: '',
-                onChange: (event) => {
-                  if (event.target.value === '') return;
-                  const suggestion = suggestions[Number(event.target.value)];
-                  if (suggestion) onSelect(suggestion);
-                },
-              },
-              h('option', { value: '', disabled: true }, '从会话选择targetID'),
+              h('p', null, '先在对应平台与机器人聊一条消息（私聊或群聊），或先在「访问设置」里出现过联系人/群，再刷新。'))
+          : h('ul', { className: 'dim-targetSuggestionList', role: 'listbox', 'aria-label': '可选投递会话' },
               suggestions.map((suggestion, index) => {
                 const identity = routeIdentity(definition, suggestion);
                 const added = configured.has(identity);
-                return React.createElement('option', {
-                  key: suggestion.id ?? suggestion.suggestionId ?? `${identity}:${index}`,
-                  value: String(index),
-                  disabled: added,
-                }, suggestionOptionLabel(definition, suggestion, added));
-              }))),
+                return h('li', { key: suggestion.id ?? suggestion.suggestionId ?? `${identity}:${index}` },
+                  h('button', {
+                    type: 'button',
+                    className: 'dim-targetSuggestionItem',
+                    role: 'option',
+                    'aria-disabled': added ? 'true' : undefined,
+                    disabled: added,
+                    onClick: () => { if (!added) onSelect(suggestion); },
+                  },
+                    // Platform display names must stay raw (bypass h() i18n phrase rewrite).
+                    React.createElement('strong', null,
+                      suggestionDisplayName(suggestion)
+                      || suggestionFallbackName(definition, suggestion)),
+                    h('span', null, [
+                      localizeText(kindLabel(definition, suggestion.kind)),
+                      added ? localizeText('已添加') : null,
+                    ].filter(Boolean).join(' · ')),
+                    React.createElement('code', null, fieldsFor(definition, suggestion.kind)
+                      .map((field) => maskRouteValue(suggestion.route?.[field.key]))
+                      .filter(Boolean)
+                      .join(' · '))));
+              })),
     h('div', { className: 'dim-targetFormActions' },
       h(DeliveryButton, { onClick: onCancel }, '取消'),
       h(DeliveryButton, { onClick: onManual }, '手动填写（高级）')));

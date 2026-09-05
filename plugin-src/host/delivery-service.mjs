@@ -118,6 +118,46 @@ export class DeliveryService {
     }
   }
 
+  /**
+   * List every saved delivery target across registered channel adapters.
+   * @returns {Promise<Array<{ botId: string, targetId: string, name: string, kind: string, channel: string }>>}
+   */
+  async listCatalog() {
+    const rows = [];
+    const seen = new Set();
+    for (const { adapter } of this.#adapters.values()) {
+      if (typeof adapter.listAllTargets !== 'function') continue;
+      let list;
+      try {
+        list = await adapter.listAllTargets();
+      } catch {
+        continue;
+      }
+      if (!Array.isArray(list)) continue;
+      for (const row of list) {
+        const botId = typeof row?.botId === 'string' ? row.botId.trim() : '';
+        const targetId = typeof row?.targetId === 'string' ? row.targetId.trim() : '';
+        if (!botId || !targetId) continue;
+        const key = `${botId}\0${targetId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        rows.push({
+          botId,
+          targetId,
+          name: typeof row.name === 'string' && row.name.trim() ? row.name.trim() : targetId,
+          kind: typeof row.kind === 'string' ? row.kind : '',
+          channel: typeof row.channel === 'string' ? row.channel : adapter.channel,
+        });
+      }
+    }
+    rows.sort((left, right) => (
+      left.channel.localeCompare(right.channel)
+      || left.name.localeCompare(right.name)
+      || left.targetId.localeCompare(right.targetId)
+    ));
+    return rows;
+  }
+
   async listSuggestions(botId) {
     const id = botIdOf(botId);
     const adapter = await this.#adapterFor(id);
@@ -173,7 +213,7 @@ export class DeliveryService {
     }
   }
 
-  async send(botId, targetIdOrDraft, text, { signal } = {}) {
+  async send(botId, targetIdOrDraft, text, { signal, mentions } = {}) {
     const id = botIdOf(botId);
     const targetKey = typeof targetIdOrDraft === 'string'
       ? targetIdOf(targetIdOrDraft)
@@ -195,7 +235,13 @@ export class DeliveryService {
         if (!target) throw deliveryError('unknown-target', 'Unknown target');
       }
       cancellation(signal);
-      await adapter.sendText(id, target, text, { signal });
+      const mentionList = Array.isArray(mentions)
+        ? mentions.filter((jid) => typeof jid === 'string' && jid.includes('@'))
+        : [];
+      await adapter.sendText(id, target, text, {
+        signal,
+        ...mentionList.length > 0 ? { mentions: mentionList } : {},
+      });
       return { sent: true };
     } catch (error) {
       if (signal?.aborted || error?.name === 'AbortError' || error?.code === 'ABORT_ERR') {

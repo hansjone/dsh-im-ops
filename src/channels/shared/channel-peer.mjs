@@ -1,4 +1,4 @@
-import { normalizeAccessPhone, phoneFromWhatsappJid } from './access-grant.mjs';
+import { normalizeAccessPhone, phoneFromWhatsappJid, resolveAccessAgentPreset } from './access-grant.mjs';
 
 /**
  * Parse a durable conversation binding key into chat identity fields.
@@ -102,6 +102,7 @@ export function formatChannelPeerLabel(...parts) {
  *   botId: string,
  *   conversationKey: string,
  *   grant?: object | null,
+ *   botAgentPreset?: string | null,
  * }} input
  * @returns {object | null}
  */
@@ -114,12 +115,26 @@ export function resolveChannelPeerFromBinding(input) {
   const parsed = parseConversationKey(conversationKey);
   if (!parsed) return null;
   const grant = input.grant && typeof input.grant === 'object' ? input.grant : null;
+  const botAgentPreset = typeof input.botAgentPreset === 'string' ? input.botAgentPreset.trim() : '';
+
+  const withPreset = (peer) => {
+    const fromGrant = resolveAccessAgentPreset(grant, {
+      kind: peer.kind === 'group' ? 'group' : 'direct',
+      groupJid: peer.kind === 'group' ? peer.conversationId : undefined,
+      conversationId: peer.conversationId,
+      phone: peer.phone,
+      senderId: peer.senderId || peer.phone,
+    });
+    const agentPreset = fromGrant || botAgentPreset || null;
+    return Object.freeze({ ...peer, agentPreset });
+  };
 
   if (parsed.kind === 'direct') {
     const { phone, pushName } = resolveContactIdentity(grant, parsed.conversationId);
-    const label = formatChannelPeerLabel(pushName, phone);
-    if (!label) return null;
-    return Object.freeze({
+    // Ops schedulers need a peer even when the contact directory is incomplete;
+    // keep the label human-facing (never raw LID / JID).
+    const label = formatChannelPeerLabel(pushName, phone) || 'WhatsApp 私聊';
+    return withPreset({
       channel,
       botId,
       kind: 'direct',
@@ -135,7 +150,7 @@ export function resolveChannelPeerFromBinding(input) {
 
   const title = groupTitle(grant, parsed.conversationId) || '未命名群';
   if (!parsed.senderId) {
-    return Object.freeze({
+    return withPreset({
       channel,
       botId,
       kind: 'group',
@@ -151,7 +166,7 @@ export function resolveChannelPeerFromBinding(input) {
 
   const { phone, pushName } = resolveContactIdentity(grant, parsed.senderId);
   const label = formatChannelPeerLabel(title, pushName, phone) || title;
-  return Object.freeze({
+  return withPreset({
     channel,
     botId,
     kind: 'group',
