@@ -679,90 +679,106 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
       }, '添加群'))),
   h('fieldset', { className: 'dim-accessScene', disabled: saving },
     h('legend', null, '最近联系人（自动沉淀）'),
-    h('p', { className: 'dim-accessUsersEmpty' },
+    h('p', { className: 'dim-accessHint' },
       '仅记录私聊机器人，或在群里 @ 机器人的人。已有对应权限的人会自动隐藏；电话是唯一授权键，可一键加入私聊/本群授权。'),
     actionableContacts.length === 0
       ? h('div', { className: 'dim-accessUsersEmpty' },
           contacts.length === 0
             ? '暂无联系人。有人私聊或 @ 机器人后会出现在此。'
             : '当前联系人均已具备对应权限，无需再授权。')
-      : h('ul', { className: 'dim-accessUserList' }, actionableContacts.slice(0, 30).map((contact) => {
-          const phone = contact.phone || '';
-          const alreadyDirect = Boolean(phone)
-            && ((draft.directMembers ?? []).some((m) => m.phone === phone)
-              || (draft.globalAdmins ?? []).includes(phone));
-          const groupTargets = (contact.groupJids ?? [])
-            .filter((jid) => knownGroupJids.includes(jid))
-            .filter((groupJid) => {
-              if (!phone) return true;
-              const group = draft.groups[groupJid] ?? { admins: [], members: [] };
-              return !(group.admins ?? []).includes(phone)
-                && !(group.members ?? []).some((m) => m.phone === phone);
-            });
-          return h('li', {
-            key: `${contact.phone ?? ''}-${(contact.lids ?? []).join(',')}`,
-            className: 'dim-accessUserRow',
-          },
-          h('div', { className: 'dim-accessField' },
-            h('strong', null, contactLabel(contact)),
-            h('span', null, (contact.scenes ?? []).join(' / ')),
-            phone ? null : h('span', null, '待补电话')),
-          phone && !alreadyDirect ? h('button', {
-            type: 'button',
-            className: 'dim-deliveryButton',
-            'data-kind': 'primary',
-            disabled: saving,
-            onClick: () => {
-              setDraft((current) => {
-                if (current.directMembers.some((m) => m.phone === phone)) return current;
-                return {
-                  ...current,
-                  directMembers: [
-                    ...current.directMembers,
-                    { phone, canExecuteCommands: true },
-                  ],
-                };
-              });
-              setFeedback({ tone: 'success', message: '已加入私聊授权，记得点保存。' });
-            },
-          }, '加私聊') : null,
-          ...groupTargets.map((groupJid) => {
-            const group = draft.groups[groupJid] ?? { admins: [], members: [] };
-            const name = groupDisplayName(groupJid, draft.groups);
-            return h('button', {
-              key: `add-${groupJid}`,
-              type: 'button',
-              className: 'dim-deliveryButton',
-              disabled: saving || !phone,
-              onClick: () => {
-                setDraft((current) => {
-                  const existing = current.groups[groupJid] ?? { title: '', admins: [], members: [] };
-                  if (existing.admins.includes(phone)
-                    || existing.members.some((m) => m.phone === phone)) {
-                    return current;
-                  }
-                  return {
-                    ...current,
-                    groups: {
-                      ...current.groups,
-                      [groupJid]: {
-                        ...existing,
-                        members: [
-                          ...existing.members,
-                          { phone, canExecuteCommands: true },
-                        ],
-                      },
-                    },
-                  };
+      : h('div', { className: 'dim-accessTableWrap' },
+          h('table', { className: 'dim-accessTable', 'data-kind': 'contact' },
+            h('thead', null,
+              h('tr', null,
+                h('th', { scope: 'col' }, '昵称'),
+                h('th', { scope: 'col' }, '电话'),
+                h('th', { scope: 'col' }, '来源'),
+                h('th', { scope: 'col', className: 'dim-accessTableActions' }, '操作'))),
+            h('tbody', null, actionableContacts.slice(0, 30).map((contact) => {
+              const phone = contact.phone || '';
+              const nickname = (typeof contact.pushName === 'string' && contact.pushName.trim())
+                ? contact.pushName.trim()
+                : '暂无昵称';
+              const alreadyDirect = Boolean(phone)
+                && ((draft.directMembers ?? []).some((m) => m.phone === phone)
+                  || (draft.globalAdmins ?? []).includes(phone));
+              const groupTargets = (contact.groupJids ?? [])
+                .filter((jid) => knownGroupJids.includes(jid))
+                .filter((groupJid) => {
+                  if (!phone) return true;
+                  const group = draft.groups[groupJid] ?? { admins: [], members: [] };
+                  return !(group.admins ?? []).includes(phone)
+                    && !(group.members ?? []).some((m) => m.phone === phone);
                 });
-                setFeedback({
-                  tone: 'success',
-                  message: ['已加入群授权：', name, '。记得点保存。'].join(''),
-                });
+              return h('tr', {
+                key: `${contact.phone ?? ''}-${(contact.lids ?? []).join(',')}`,
               },
-            }, ['加入群：', name].join(''));
-          }));
-        }))),
+                h('td', { className: 'dim-accessTableNick' },
+                  h('span', {
+                    className: nickname === '暂无昵称'
+                      ? 'dim-accessNickname dim-accessNicknameEmpty'
+                      : 'dim-accessNickname',
+                  }, nickname)),
+                h('td', { className: 'dim-accessTablePhone' },
+                  phone || h('span', { className: 'dim-accessNicknameEmpty' }, '待补电话')),
+                h('td', { className: 'dim-accessTableSource' },
+                  (contact.scenes ?? []).join(' / ') || '—'),
+                h('td', { className: 'dim-accessTableActions dim-accessContactActions' },
+                  phone && !alreadyDirect ? h('button', {
+                    type: 'button',
+                    className: 'dim-deliveryButton',
+                    'data-kind': 'primary',
+                    disabled: saving,
+                    onClick: () => {
+                      setDraft((current) => {
+                        if (current.directMembers.some((m) => m.phone === phone)) return current;
+                        return {
+                          ...current,
+                          directMembers: [
+                            ...current.directMembers,
+                            { phone, canExecuteCommands: true },
+                          ],
+                        };
+                      });
+                      setFeedback({ tone: 'success', message: '已加入私聊授权，记得点保存。' });
+                    },
+                  }, '加私聊') : null,
+                  ...groupTargets.map((groupJid) => {
+                    const name = groupDisplayName(groupJid, draft.groups);
+                    return h('button', {
+                      key: `add-${groupJid}`,
+                      type: 'button',
+                      className: 'dim-deliveryButton',
+                      disabled: saving || !phone,
+                      onClick: () => {
+                        setDraft((current) => {
+                          const existing = current.groups[groupJid] ?? { title: '', admins: [], members: [] };
+                          if (existing.admins.includes(phone)
+                            || existing.members.some((m) => m.phone === phone)) {
+                            return current;
+                          }
+                          return {
+                            ...current,
+                            groups: {
+                              ...current.groups,
+                              [groupJid]: {
+                                ...existing,
+                                members: [
+                                  ...existing.members,
+                                  { phone, canExecuteCommands: true },
+                                ],
+                              },
+                            },
+                          };
+                        });
+                        setFeedback({
+                          tone: 'success',
+                          message: ['已加入群授权：', name, '。记得点保存。'].join(''),
+                        });
+                      },
+                    }, ['加入群：', name].join(''));
+                  })));
+            }))))),
   h('fieldset', { className: 'dim-accessScene', disabled: saving },
     h('legend', null, '群会话策略'),
     h('label', { className: 'dim-accessField' },

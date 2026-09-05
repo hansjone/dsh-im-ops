@@ -11,6 +11,8 @@ const EN = Object.freeze({
   '机器人设置页签': 'Bot settings tabs',
   '投递设置': 'Delivery settings',
   '访问设置': 'Access settings',
+  "—": "—",
+  "来源": "Source",
   "暂无管理员，可点下方新增。": "No admins yet. Add one below.",
   "暂无用户，可点下方新增。": "No users yet. Add one below.",
   "不可删除": "Locked",
