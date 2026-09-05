@@ -484,12 +484,13 @@ body[data-ds-dark-theme] .dim-page select option, body[data-ds-dark-theme] .dim-
 .dim-accessTable[data-kind="member"] th:nth-child(2), .dim-accessTable[data-kind="member"] td:nth-child(2) { width: 36%; }
 .dim-accessTable[data-kind="member"] th:nth-child(3), .dim-accessTable[data-kind="member"] td:nth-child(3) { width: 28%; }
 .dim-accessTable[data-kind="member"] th:nth-child(4), .dim-accessTable[data-kind="member"] td:nth-child(4) { width: 16%; }
-.dim-accessTable[data-kind="contact"] th:nth-child(1), .dim-accessTable[data-kind="contact"] td:nth-child(1) { width: 16%; }
-.dim-accessTable[data-kind="contact"] th:nth-child(2), .dim-accessTable[data-kind="contact"] td:nth-child(2) { width: 24%; }
-.dim-accessTable[data-kind="contact"] th:nth-child(3), .dim-accessTable[data-kind="contact"] td:nth-child(3) { width: 14%; }
-.dim-accessTable[data-kind="contact"] th:nth-child(4), .dim-accessTable[data-kind="contact"] td:nth-child(4) { width: 46%; }
-.dim-accessTableSource { min-width: 0; color: var(--dsw-alias-label-secondary, #646a73); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dim-accessContactActions { display: inline-flex; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: 6px; width: 100%; white-space: nowrap; }
+.dim-accessTable[data-kind="contact"] th:nth-child(1), .dim-accessTable[data-kind="contact"] td:nth-child(1) { width: 18%; }
+.dim-accessTable[data-kind="contact"] th:nth-child(2), .dim-accessTable[data-kind="contact"] td:nth-child(2) { width: 26%; }
+.dim-accessTable[data-kind="contact"] th:nth-child(3), .dim-accessTable[data-kind="contact"] td:nth-child(3) { width: 16%; }
+.dim-accessTable[data-kind="contact"] th:nth-child(4), .dim-accessTable[data-kind="contact"] td:nth-child(4),
+.dim-accessTable[data-kind="contact"] .dim-accessTableActions { width: 40%; }
+.dim-accessTableSource { min-width: 0; max-width: 100%; color: var(--dsw-alias-label-secondary, #646a73); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dim-accessContactActions { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: flex-start; gap: 6px; min-width: 0; white-space: nowrap; }
 .dim-accessContactActions .dim-deliveryButton { flex: 0 0 auto; min-height: 28px; padding: 3px 8px; white-space: nowrap; }
 .dim-accessTableNick { min-width: 0; }
 .dim-accessTableNick .dim-accessNickname { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -497,7 +498,9 @@ body[data-ds-dark-theme] .dim-page select option, body[data-ds-dark-theme] .dim-
 .dim-accessTablePhone:focus-within { z-index: 6; }
 .dim-accessTablePhone .dim-accessTypeahead > input { height: 32px; }
 .dim-accessTablePerm { min-width: 0; }
-.dim-accessTableActions { width: 72px; white-space: nowrap; text-align: right; }
+.dim-accessTableActions { white-space: nowrap; text-align: right; vertical-align: middle; }
+.dim-accessTable[data-kind="admin"] .dim-accessTableActions,
+.dim-accessTable[data-kind="member"] .dim-accessTableActions { width: 72px; }
 .dim-accessTableActions .dim-accessCompactDelete { width: auto; min-width: 52px; }
 .dim-accessTableEmpty { color: var(--dsw-alias-label-tertiary, #8f959e); font-size: 12px; text-align: center; }
 .dim-accessTableLocked { color: var(--dsw-alias-label-tertiary, #8f959e); font-size: 12px; }
