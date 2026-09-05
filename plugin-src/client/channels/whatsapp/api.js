@@ -22,6 +22,7 @@ export const WHATSAPP_ENDPOINTS = Object.freeze({
   setWorkspace: 'bot.workspace.set',
   setAgentPreset: SET_AGENT_PRESET_ENDPOINT,
   setContextEnhancement: 'bot.context-enhancement.set',
+  resolveChannelPeer: 'bot.session.channel-peer',
 });
 
 const PROVISION_STATES = new Set(['starting', 'pending', 'connecting', 'connected', 'failed', 'cancelled']);

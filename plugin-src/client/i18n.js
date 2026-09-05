@@ -11,6 +11,7 @@ const EN = Object.freeze({
   '机器人设置页签': 'Bot settings tabs',
   '投递设置': 'Delivery settings',
   '访问设置': 'Access settings',
+  '渠道用户': 'Channel user',
   "（不可用）": " (unavailable)",
   "群 Agent Preset": "Group Agent Preset",
   "跟随全局": "Follow global",

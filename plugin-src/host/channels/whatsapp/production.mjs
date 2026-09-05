@@ -158,6 +158,7 @@ export async function createProductionController(ctx, config = {}, internals = {
     workspaces,
     stateFor,
     agentPresetCatalog,
+    channel: 'whatsapp',
   });
   const supervisor = createSupervisor({
     channel: 'whatsapp',

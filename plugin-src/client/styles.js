@@ -537,6 +537,34 @@ body[data-ds-dark-theme] .dim-page select option, body[data-ds-dark-theme] .dim-
 .dim-accessGroupTitleRow { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 10px; align-items: end; }
 .dim-accessNickname { display: block; margin-top: 0; color: var(--dsw-alias-label-secondary, #646a73); font-size: 11px; line-height: 15px; font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dim-accessNicknameEmpty { color: var(--dsw-alias-label-tertiary, #8f959e); font-weight: 400; }
+.dim-channelPeerLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  min-width: 0;
+  height: 22px;
+  padding: 0 8px 0 6px;
+  border-radius: 6px;
+  background: var(--dsw-alias-fill-tsp-secondary, color-mix(in srgb, var(--dsw-alias-label-primary, #1f2329) 6%, transparent));
+  color: var(--dsw-alias-label-secondary, #646a73);
+  font-size: 12px;
+  line-height: 22px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.dim-channelPeerChannel {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary, #8f959e);
+  font-weight: 560;
+}
+.dim-channelPeerText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  color: var(--dsw-alias-label-secondary, #646a73);
+}
 .dim-accessUserRow { position: relative; z-index: 0; overflow: visible; }
 .dim-panel .dim-botCard .dim-cardFooter { margin-top: 0; }
 .dim-panel .ddt-headingCopy { display: none; }

@@ -45,6 +45,10 @@ import { installWhatsappStyles } from './channels/whatsapp/styles.js';
 import { en, h, IM_LOCALE_NAMESPACE, setImTranslator, zh } from './i18n.js';
 import { BotSettingsContext } from './channel-card-meta.js';
 import {
+  ChannelPeerLabel,
+  resolveWhatsappChannelPeer,
+} from './channel-peer-label.js';
+import {
   DELIVERY_RPC_CHANNEL,
   DeliveryTargetSettingsPage,
 } from './delivery-settings.js';
@@ -375,6 +379,18 @@ export function apply(ctx) {
       callWorkspaceDirectoryApi(ctx, 'listDirectory', path, signal),
     pickDirectory: () => callWorkspaceDirectoryApi(ctx, 'pickDirectory'),
   });
+
+  const resolveChannelPeer = (sessionId, signal) =>
+    resolveWhatsappChannelPeer(whatsappRpcCall, sessionId, signal);
+
+  ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register({
+    name: 'conversation.session.header.actions',
+    id: 'im-channel-peer',
+    // Immediately after Agent Preset (−10); schedule/jobs follow at 10+.
+    order: 0,
+    locale: IM_LOCALE_NAMESPACE,
+    inject: () => ({ resolveChannelPeer }),
+  }, ChannelPeerLabel));
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',

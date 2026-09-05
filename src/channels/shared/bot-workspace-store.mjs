@@ -28,6 +28,7 @@ import {
   resolveAccessPending,
   validateAccessGrant,
 } from './access-grant.mjs';
+import { resolveChannelPeerFromBinding } from './channel-peer.mjs';
 import { CONNECTION_TEST_STATE_IDENTITY } from './connection-test.mjs';
 import {
   DEFAULT_CONTEXT_ENHANCEMENT_CONFIG,
@@ -1458,10 +1459,16 @@ export function createBotScopedHarness(harness, options) {
   return createBotWorkspaceScope(harness, options).harness;
 }
 
-export function createWorkspaceAwareController(controller, { workspaces, stateFor, agentPresetCatalog } = {}) {
+export function createWorkspaceAwareController(controller, {
+  workspaces,
+  stateFor,
+  agentPresetCatalog,
+  channel = null,
+} = {}) {
   if (!controller || !workspaces || typeof stateFor !== 'function') {
     throw new TypeError('controller, workspaces, and stateFor are required');
   }
+  const channelId = typeof channel === 'string' && channel.trim() ? channel.trim() : null;
   const transitions = new Map();
   const withBotTransition = (botId, operation) => {
     const previous = transitions.get(botId) ?? Promise.resolve();
@@ -1674,6 +1681,35 @@ export function createWorkspaceAwareController(controller, { workspaces, stateFo
     }
   });
 
+  const resolveChannelPeer = async (sessionId) => {
+    if (!channelId) return null;
+    const id = typeof sessionId === 'string' ? sessionId.trim() : '';
+    if (!id || id.length > 256) return null;
+    const snapshot = await controller.status();
+    const bots = Array.isArray(snapshot?.bots) ? snapshot.bots : [];
+    for (const bot of bots) {
+      const botId = typeof bot?.botId === 'string' ? bot.botId.trim() : '';
+      if (!botId) continue;
+      let state;
+      try {
+        state = await stateFor(botId);
+      } catch {
+        continue;
+      }
+      const conversationKey = typeof state?.keyForSession === 'function'
+        ? state.keyForSession(id)
+        : null;
+      if (!conversationKey) continue;
+      return resolveChannelPeerFromBinding({
+        channel: channelId,
+        botId,
+        conversationKey,
+        grant: workspaces.accessGrantFor(botId),
+      });
+    }
+    return null;
+  };
+
   return new Proxy(controller, {
     get(target, property) {
       if (property === 'updateWorkspace') return updateWorkspace;
@@ -1683,6 +1719,7 @@ export function createWorkspaceAwareController(controller, { workspaces, stateFo
       if (property === 'updateGroupSessionScope') return updateGroupSessionScope;
       if (property === 'updateAccessGrant') return updateAccessGrant;
       if (property === 'resolveAccessPending') return resolveAccessPendingProxy;
+      if (property === 'resolveChannelPeer') return resolveChannelPeer;
       const value = Reflect.get(target, property, target);
       if (typeof value !== 'function') return value;
       if (property === 'deleteBot') {

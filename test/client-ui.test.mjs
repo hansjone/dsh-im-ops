@@ -764,7 +764,10 @@ test('client registers one top-level bilingual IM settings section with a direct
     },
     slots: {
       inject(name, install) {
-        assert.equal(name, 'settings.section');
+        assert.ok(
+          name === 'settings.section' || name === 'conversation.session.header.actions',
+          `unexpected slot inject: ${name}`,
+        );
         install();
       },
       register(options, component) {
@@ -783,15 +786,22 @@ test('client registers one top-level bilingual IM settings section with a direct
     assert.deepEqual(clientInject, ['slots', 'connection', 'locale', 'workspaces']);
     assert.equal(dictionaries[0].namespace, IM_LOCALE_NAMESPACE);
     assert.deepEqual(Object.keys(dictionaries[0].value.en).sort(), Object.keys(dictionaries[0].value.zh).sort());
-    assert.equal(registrations.length, 1);
-    assert.equal(registrations[0].options.name, 'settings.section');
-    assert.equal(registrations[0].options.id, 'xmanrui-dsh-im');
-    assert.equal(registrations[0].options.order, 21);
-    assert.equal(registrations[0].options.locale, IM_LOCALE_NAMESPACE);
-    assert.equal(registrations[0].options.label(), 'IM bots');
-    assert.equal(registrations[0].component, IMSettingsTab);
+    assert.equal(registrations.length, 2);
+    const header = registrations.find((entry) => entry.options.name === 'conversation.session.header.actions');
+    const settings = registrations.find((entry) => entry.options.name === 'settings.section');
+    assert.ok(header);
+    assert.equal(header.options.id, 'im-channel-peer');
+    assert.equal(header.options.order, 0);
+    assert.equal(header.options.locale, IM_LOCALE_NAMESPACE);
+    assert.equal(typeof header.options.inject().resolveChannelPeer, 'function');
+    assert.ok(settings);
+    assert.equal(settings.options.id, 'xmanrui-dsh-im');
+    assert.equal(settings.options.order, 21);
+    assert.equal(settings.options.locale, IM_LOCALE_NAMESPACE);
+    assert.equal(settings.options.label(), 'IM bots');
+    assert.equal(settings.component, IMSettingsTab);
 
-    const injected = registrations[0].options.inject();
+    const injected = settings.options.inject();
     const signal = new AbortController().signal;
     await injected.updateRpcCall('update.status', {}, signal);
     assert.deepEqual(rpcCalls, [['/dsh-im', 'update.status', {}, signal]]);
@@ -806,7 +816,7 @@ test('client registers one top-level bilingual IM settings section with a direct
     ]);
 
     const markup = renderToStaticMarkup(React.createElement(
-      registrations[0].component,
+      settings.component,
       injected,
     ));
     assert.match(markup, /Connecting DeepSeek Harness/);
@@ -846,7 +856,10 @@ test('client directory picker uses the current DSH uiWorkspace service', async (
     },
     slots: {
       inject(name, install) {
-        assert.equal(name, 'settings.section');
+        assert.ok(
+          name === 'settings.section' || name === 'conversation.session.header.actions',
+          `unexpected slot inject: ${name}`,
+        );
         install();
       },
       register(options, component) {
@@ -869,7 +882,9 @@ test('client directory picker uses the current DSH uiWorkspace service', async (
       },
     };
 
-    const injected = registrations[0].options.inject();
+    const settings = registrations.find((entry) => entry.options.name === 'settings.section');
+    assert.ok(settings);
+    const injected = settings.options.inject();
     const signal = new AbortController().signal;
     assert.deepEqual(
       await injected.workspaceDirectoryPicker.listDirectory('/workspace/current', signal),

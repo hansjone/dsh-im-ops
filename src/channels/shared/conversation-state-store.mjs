@@ -47,6 +47,19 @@ export class ConversationStateStore {
     return this.#state.sessions[key] ?? null;
   }
 
+  /**
+   * Reverse-map a Harness session id to its conversation binding key.
+   * @param {string} sessionId
+   * @returns {string|null}
+   */
+  keyForSession(sessionId) {
+    if (typeof sessionId !== 'string' || !sessionId) return null;
+    for (const [key, bound] of Object.entries(this.#state.sessions)) {
+      if (bound === sessionId) return key;
+    }
+    return null;
+  }
+
   async setSession(key, sessionId) {
     this.#state.sessions[key] = sessionId;
     await this.#persist();

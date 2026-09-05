@@ -32,6 +32,7 @@ export const WHATSAPP_ENDPOINTS = Object.freeze({
   setWorkspace: SET_WORKSPACE_ENDPOINT,
   setAgentPreset: SET_AGENT_PRESET_ENDPOINT,
   setContextEnhancement: SET_CONTEXT_ENHANCEMENT_ENDPOINT,
+  resolveChannelPeer: 'bot.session.channel-peer',
 });
 export const WHATSAPP_RPC_ENDPOINTS = Object.freeze(Object.values(WHATSAPP_ENDPOINTS));
 
@@ -98,6 +99,13 @@ function payloadFailure(endpoint, payload) {
   if (endpoint === WHATSAPP_ENDPOINTS.setContextEnhancement) {
     return validContextEnhancementPayload(payload)
       ? null : '请提交有效的上下文增强设置。';
+  }
+  if (endpoint === WHATSAPP_ENDPOINTS.resolveChannelPeer) {
+    return exactKeys(payload, ['sessionId'])
+      && typeof payload.sessionId === 'string'
+      && payload.sessionId.trim()
+      && payload.sessionId.trim().length <= 256
+      ? null : 'bot.session.channel-peer requires a sessionId.';
   }
   return 'Unknown WhatsApp endpoint.';
 }
@@ -252,6 +260,11 @@ export function createWhatsappRpcHandler(controller, { encodeQr = qrDataUrl } = 
           payload.groupSessionScope,
           (status) => publicStatus(status, cachedEncode),
         );
+      } else if (endpoint === WHATSAPP_ENDPOINTS.resolveChannelPeer) {
+        if (typeof controller.resolveChannelPeer !== 'function') {
+          throw new Error('Channel peer resolve is unavailable');
+        }
+        value = await controller.resolveChannelPeer(payload.sessionId.trim());
       } else {
         value = await publicStatus(await controller.deleteBot(payload.botId), cachedEncode);
       }
