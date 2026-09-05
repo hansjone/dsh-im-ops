@@ -182,6 +182,7 @@ export function IMSettingsTab({
   const [runningVersion, setRunningVersion] = React.useState(IM_PLUGIN_VERSION);
   const [deliverySettings, setDeliverySettings] = React.useState(null);
   const githubTooltipId = React.useId();
+  const channelSelectId = React.useId();
   const active = CHANNELS.find((channel) => channel.id === selected) ?? CHANNELS[0];
   const reportLoopbackRecovery = React.useCallback((recovery) => {
     setLoopbackRecovery((current) => current?.url === recovery.url ? current : recovery);
@@ -256,31 +257,30 @@ export function IMSettingsTab({
         }, '帮助与反馈 · 前往 GitHub'))),
     ),
     h('div', { className: 'dim-layout' },
-      h('nav', { className: 'dim-rail', role: 'tablist', 'aria-label': 'IM 渠道' },
-        CHANNELS.map((channel) => h('button', {
-          key: channel.id,
-          type: 'button',
-          role: 'tab',
-          id: `dim-tab-${channel.id}`,
-          className: 'dim-channel',
-          'aria-selected': channel.id === active.id,
-          'aria-controls': `dim-panel-${channel.id}`,
-          onClick: () => {
-            setSelected(channel.id);
-            setDeliverySettings(null);
-          },
-        },
-        h(ChannelLogo, { channel: channel.id }),
-        h('span', { className: 'dim-channelCopy' },
-          h('strong', null, channel.label),
-          channel.note ? h('small', { className: 'dim-channelNote' }, channel.note) : null,
-        )))),
-      h('div', { className: 'dim-divider', 'aria-hidden': 'true' }),
+      h('div', { className: 'dim-channelPicker' },
+        h('label', {
+          className: 'dim-channelPickerLabel',
+          htmlFor: channelSelectId,
+        }, 'IM 渠道'),
+        h('div', { className: 'dim-channelPickerControl' },
+          h(ChannelLogo, { channel: active.id }),
+          h('select', {
+            id: channelSelectId,
+            className: 'dim-channelPickerSelect',
+            value: active.id,
+            'aria-label': 'IM 渠道',
+            onChange: (event) => {
+              setSelected(event.target.value);
+              setDeliverySettings(null);
+            },
+          }, CHANNELS.map((channel) => h('option', {
+            key: channel.id,
+            value: channel.id,
+          }, channel.label, channel.note || null))))),
       h('main', {
         className: 'dim-panel',
-        role: 'tabpanel',
         id: `dim-panel-${active.id}`,
-        'aria-labelledby': `dim-tab-${active.id}`,
+        'aria-label': active.label,
       },
       loopbackRecovery
         ? h(LoopbackRecoveryNotice, {

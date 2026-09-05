@@ -61,14 +61,13 @@ const CSS = String.raw`
 .dim-githubArrow { font-size: 13px; line-height: 1; }
 .dim-githubTooltip { position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; width: max-content; max-width: min(220px, 80vw); padding: 6px 9px; border: 1px solid var(--dsw-alias-border-l2, #dfe1e5); border-radius: 7px; color: var(--dsw-alias-label-primary, #1f2329); background: var(--dsw-alias-bg-layer-3, #fff); box-shadow: 0 8px 24px rgb(31 35 41 / 14%); font-size: 11px; line-height: 16px; font-weight: 500; white-space: nowrap; opacity: 0; visibility: hidden; transform: translateY(-3px); pointer-events: none; transition: opacity .15s ease, transform .15s ease, visibility .15s ease; }
 .dim-githubAction:hover .dim-githubTooltip, .dim-githubAction:focus-within .dim-githubTooltip { opacity: 1; visibility: visible; transform: translateY(0); }
-.dim-layout { display: grid; grid-template-columns: 174px 1px minmax(0, 1fr); gap: 24px; align-items: start; }
-.dim-rail { max-height: 520px; display: grid; align-content: start; gap: 8px; overflow-y: auto; padding: 0 4px 1px 1px; scrollbar-width: thin; scrollbar-color: var(--dsw-alias-border-l2, #dfe1e5) transparent; }
-.dim-rail::-webkit-scrollbar { width: 4px; }
-.dim-rail::-webkit-scrollbar-thumb { border-radius: 99px; background: var(--dsw-alias-border-l2, #dfe1e5); }
-.dim-channel { width: 100%; min-height: 48px; display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--dsw-alias-border-l2, #eef0f3); border-radius: 14px; color: inherit; background: var(--dsw-alias-bg-layer-3, #fff); box-shadow: 0 2px 8px rgb(31 35 41 / 3%); font: inherit; text-align: left; cursor: pointer; transition: border-color .16s ease, background .16s ease, box-shadow .16s ease; }
-.dim-channel:hover { border-color: color-mix(in srgb, var(--dim-blue) 25%, var(--dsw-alias-border-l2, #eef0f3)); background: color-mix(in srgb, var(--dim-blue) 2%, var(--dsw-alias-bg-layer-3, #fff)); box-shadow: 0 5px 16px rgb(31 35 41 / 5%); }
-.dim-channel[aria-selected="true"] { border-color: color-mix(in srgb, var(--dim-blue) 43%, var(--dsw-alias-border-l2, #dfe1e5)); color: var(--dim-blue); background: color-mix(in srgb, var(--dim-blue) 12%, var(--dsw-alias-bg-layer-3, #fff)); box-shadow: 0 3px 12px rgb(51 112 255 / 7%); }
-.dim-channel:focus-visible { outline: none; border-color: color-mix(in srgb, var(--dim-blue) 72%, var(--dsw-alias-border-l2, #dfe1e5)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--dim-blue) 24%, transparent) inset, 0 3px 12px rgb(51 112 255 / 7%); }
+.dim-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+.dim-channelPicker { min-width: 0; display: flex; align-items: center; gap: 10px; }
+.dim-channelPickerLabel { flex: none; color: var(--dsw-alias-label-secondary, #646a73); font-size: 12px; line-height: 18px; font-weight: 560; white-space: nowrap; }
+.dim-channelPickerControl { min-width: 0; flex: 1 1 auto; display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: center; gap: 10px; max-width: 420px; padding: 4px 10px 4px 6px; border: 1px solid var(--dsw-alias-border-l2, #dfe1e5); border-radius: 10px; background: var(--dsw-alias-bg-layer-3, #fff); box-shadow: 0 1px 2px rgb(31 35 41 / 4%); }
+.dim-channelPickerSelect { min-width: 0; width: 100%; height: 34px; padding: 0 4px 0 0; border: 0; border-radius: 6px; color: var(--dsw-alias-label-primary, #1f2329); background: transparent; font: inherit; font-size: 14px; font-weight: 650; cursor: pointer; }
+.dim-channelPickerSelect:focus { outline: none; }
+.dim-channelPickerControl:focus-within { border-color: color-mix(in srgb, var(--dim-blue) 55%, var(--dsw-alias-border-l2, #dfe1e5)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dim-blue) 16%, transparent); }
 .dim-logo { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; box-shadow: 0 1px 3px rgb(31 35 41 / 7%); }
 .dim-logo svg { display: block; width: 20px; height: 20px; }
 .dim-logoWeixin { color: white; background: #07c160; }
@@ -91,10 +90,6 @@ const CSS = String.raw`
 .dim-logoSlack svg { width: 21px; height: 21px; }
 .dim-logoWhatsapp { color: white; background: #25d366; }
 .dim-logoWhatsapp svg { width: 21px; height: 21px; }
-.dim-channelCopy { min-width: 0; display: grid; }
-.dim-channelCopy strong { overflow: hidden; color: inherit; font-size: 14px; line-height: 20px; font-weight: 680; text-overflow: ellipsis; white-space: nowrap; }
-.dim-channelNote { overflow: hidden; color: var(--dsw-alias-label-tertiary, #8f959e); font-size: 10px; line-height: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.dim-divider { width: 1px; min-height: 520px; background: var(--dsw-alias-border-l1, #eef0f3); }
 .dim-panel { min-width: 0; container-type: inline-size; }
 .dim-loopbackRecovery { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 0 14px; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #d97706) 30%, var(--dsw-alias-border-l2, #dfe1e5)); border-radius: 12px; color: var(--dsw-alias-label-primary, #1f2329); background: color-mix(in srgb, var(--dsw-alias-state-warn-primary, #d97706) 8%, var(--dsw-alias-bg-layer-1, #fff)); }
 .dim-loopbackRecoveryCopy { min-width: 0; }
@@ -525,11 +520,7 @@ const CSS = String.raw`
 }
 @media (max-width: 840px) {
   .dim-title { align-items: flex-start; }
-  .dim-layout { grid-template-columns: minmax(0, 1fr); gap: 18px; }
-  .dim-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dim-divider { display: none; }
-  .dim-rail { max-height: none; overflow: visible; padding-right: 1px; }
-  .dim-channel { min-height: 48px; }
+  .dim-channelPickerControl { max-width: none; }
 }
 @media (max-width: 560px) {
   .dim-title { flex-direction: column; gap: 10px; }
@@ -542,7 +533,8 @@ const CSS = String.raw`
   .dim-updateBody { padding: 16px 18px; }
   .dim-updateFooter { padding: 12px 18px; }
   .dim-githubTooltip { right: auto; left: 0; }
-  .dim-rail { grid-template-columns: minmax(0, 1fr); }
+  .dim-channelPicker { align-items: stretch; flex-direction: column; gap: 6px; }
+  .dim-channelPickerControl { max-width: none; }
   .dim-loopbackRecovery { align-items: stretch; flex-direction: column; gap: 12px; }
   .dim-loopbackRecoveryAction { width: 100%; }
   .dim-deliverySectionHeading { align-items: stretch; flex-direction: column; }

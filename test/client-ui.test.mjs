@@ -147,6 +147,8 @@ test('IM settings renders nine IM channels plus the AI Office connector', async 
   assert.match(styles, /\.dim-githubTooltip \{[^}]*top: calc\(100% \+ 8px\);[^}]*transform: translateY\(-3px\);/);
   assert.match(styles, /\.dim-githubAction:hover \.dim-githubTooltip, \.dim-githubAction:focus-within \.dim-githubTooltip \{[^}]*opacity: 1;[^}]*visibility: visible;/);
   assert.doesNotMatch(markup, /\d+ 个渠道|dim-channelCount/);
+  assert.match(markup, /dim-channelPickerSelect/);
+  assert.match(markup, /aria-label="IM 渠道"/);
   assert.match(markup, />微信</);
   assert.match(markup, />飞书</);
   assert.match(markup, />钉钉</);
@@ -156,20 +158,22 @@ test('IM settings renders nine IM channels plus the AI Office connector', async 
   assert.match(markup, />Telegram</);
   assert.match(markup, />Discord</);
   assert.match(markup, />WhatsApp</);
-  assert.match(markup, />AI Office<\/strong><small class="dim-channelNote">（实验功能）<\/small>/);
+  assert.match(markup, />AI Office（实验功能）</);
   assert.match(markup, /dim-logoWeixin/);
-  assert.match(markup, /dim-logoFeishu/);
-  assert.match(markup, /dim-logoDingtalk/);
-  assert.match(markup, /dim-logoWecom/);
-  assert.match(markup, /dim-logoQq/);
-  assert.match(markup, /dim-logoSlack/);
-  assert.match(markup, /dim-logoTelegram/);
-  assert.match(markup, /dim-logoDiscord/);
-  assert.match(markup, /dim-logoWhatsapp/);
-  assert.match(markup, /dim-logoOffice/);
+  assert.match(markup, /data-im-channel-logo="weixin"/);
   assert.match(styles, /\.dim-logoFeishu svg \{ width: 28px; height: 28px; \}/);
-  assert.equal((markup.match(/role="tab"/g) ?? []).length, 10);
-  assert.equal((markup.match(/aria-selected="true"/g) ?? []).length, 1);
+  assert.match(styles, /\.dim-logoWeixin \{/);
+  assert.match(styles, /\.dim-logoDingtalk \{/);
+  assert.match(styles, /\.dim-logoWecom \{/);
+  assert.match(styles, /\.dim-logoQq \{/);
+  assert.match(styles, /\.dim-logoSlack \{/);
+  assert.match(styles, /\.dim-logoTelegram \{/);
+  assert.match(styles, /\.dim-logoDiscord \{/);
+  assert.match(styles, /\.dim-logoWhatsapp \{/);
+  assert.match(styles, /\.dim-logoOffice \{/);
+  assert.equal((markup.match(/<option /g) ?? []).length, 10);
+  assert.match(markup, /<option[^>]*value="weixin"[^>]*selected=""/);
+  assert.doesNotMatch(markup, /role="tab"|role="tablist"|role="tabpanel"/);
   assert.doesNotMatch(markup, /role="switch"|type="checkbox"/);
   assert.doesNotMatch(markup, /dim-chevron|扫码绑定<\/small>|扫码接入<\/small>/);
   assert.doesNotMatch(markup, />INSTANT MESSAGING<|>Channel<|>微信设置</);
@@ -196,7 +200,7 @@ test('all channel styles use the current Harness theme tokens', async () => {
   assert.match(styles, /--dim-blue: var\(--dsw-alias-state-business-primary, #3370ff\)/);
   assert.match(
     styles,
-    /\.dim-channel\[aria-selected="true"\][^}]*var\(--dsw-alias-bg-layer-3/,
+    /\.dim-channelPickerControl:focus-within[^}]*var\(--dim-blue\)/,
   );
   assert.match(
     styles,
@@ -450,8 +454,8 @@ test('all channel settings states use the DingTalk page treatment', async () => 
   assert.match(styles, /\.dim-panel \.dim-confirm \{[^}]*padding: 18px 24px;[^}]*border-top: 1px solid/);
 });
 
-test('bot cards reuse the same channel brand logos as the channel rail', () => {
-  const railMarkup = renderToStaticMarkup(React.createElement(IMSettingsTab, {
+test('bot cards reuse the same channel brand logos as the channel picker', () => {
+  const pickerMarkup = renderToStaticMarkup(React.createElement(IMSettingsTab, {
     feishuRpcCall: async () => ({ ok: true, value: {} }),
     weixinRpcCall: async () => ({ ok: true, value: {} }),
     dingtalkRpcCall: async () => ({ ok: true, value: {} }),
@@ -472,9 +476,8 @@ test('bot cards reuse the same channel brand logos as the channel rail', () => {
     onCancelRemove() {},
   }));
 
-  assert.match(railMarkup, /data-im-channel-logo="weixin"/);
-  assert.match(railMarkup, /data-im-channel-logo="feishu"/);
-  assert.match(railMarkup, /data-im-channel-logo="wecom"/);
+  assert.match(pickerMarkup, /dim-channelPickerSelect/);
+  assert.match(pickerMarkup, /data-im-channel-logo="weixin"/);
   assert.match(accountMarkup, /class="dxw-card dim-botCard"/);
   assert.match(accountMarkup, /class="dxw-avatar dim-botAvatar"[^]*data-im-channel-logo="weixin"/);
   assert.match(accountMarkup, /class="dxw-health dim-botHealth"/);
@@ -813,7 +816,7 @@ test('client registers one top-level bilingual IM settings section with a direct
     assert.match(markup, /Help &amp; feedback · Open GitHub/);
     assert.match(markup, />WeChat<|>Feishu<|>DingTalk<|>WeCom</);
     assert.match(markup, />QQ<[^]*>Slack<[^]*>Telegram<[^]*>Discord<[^]*>WhatsApp</);
-    assert.match(markup, />AI Office<\/strong><small class="dim-channelNote">\(Experimental\)<\/small>/);
+    assert.match(markup, />AI Office\(Experimental\)</);
     assert.doesNotMatch(markup, /[\p{Script=Han}]/u);
   } finally {
     setImTranslator(null);
