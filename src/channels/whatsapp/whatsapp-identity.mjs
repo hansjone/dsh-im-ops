@@ -238,3 +238,21 @@ export async function enrichWhatsappInboundIdentities(message, raw, {
       : {}),
   };
 }
+
+/**
+ * Resolve a WhatsApp group subject for display / access-grant group cards.
+ * @param {{ groupMetadata?: (jid: string) => Promise<{ subject?: string }> }|null|undefined} socket
+ * @param {string} groupJid
+ * @returns {Promise<string>}
+ */
+export async function resolveWhatsappGroupSubject(socket, groupJid) {
+  if (!socket || typeof socket.groupMetadata !== 'function') return '';
+  if (typeof groupJid !== 'string' || !groupJid.endsWith('@g.us')) return '';
+  try {
+    const meta = await socket.groupMetadata(groupJid);
+    const subject = typeof meta?.subject === 'string' ? meta.subject.trim() : '';
+    return subject.slice(0, 128);
+  } catch {
+    return '';
+  }
+}

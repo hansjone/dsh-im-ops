@@ -11,6 +11,7 @@ const EN = Object.freeze({
   '机器人设置页签': 'Bot settings tabs',
   '投递设置': 'Delivery settings',
   '访问设置': 'Access settings',
+  "暂无昵称（私聊/@ 后会自动补齐）": "No nickname yet (filled after DM or @mention)",
   "群聊 · ": "Group · ",
 
   "。记得点保存。": ". Remember to save.",

@@ -194,6 +194,7 @@ export async function gateWhatsappInbound({
   message,
   sendText,
   accountJid,
+  resolveGroupTitle,
 }) {
   const { phone, lid } = resolveInboundPhone(message);
   const scene = message.kind === 'group' ? 'group' : 'direct';
@@ -205,7 +206,15 @@ export async function gateWhatsappInbound({
     current = await rememberWhatsappContact(workspaces, botId, current, message, { phone, lid });
   }
   if (scene === 'group' && addressed && message.conversationId) {
-    const title = message.contextSource?.()?.conversationTitle;
+    let title = message.contextSource?.()?.conversationTitle;
+    const existingTitle = current.groups?.[message.conversationId]?.title;
+    if (!title && !existingTitle && typeof resolveGroupTitle === 'function') {
+      try {
+        title = await resolveGroupTitle(message.conversationId);
+      } catch {
+        title = '';
+      }
+    }
     const withGroup = ensureGroupBucket(current, message.conversationId, {
       ...(title ? { title } : {}),
     });

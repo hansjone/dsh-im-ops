@@ -71,6 +71,20 @@ function contactLabel(contact) {
   return `${name} · ${phone}`;
 }
 
+function nicknameForPhone(contacts, phone) {
+  const digits = digitsOnly(phone);
+  if (!digits) return '';
+  const hit = (contacts ?? []).find((contact) => contact.phone === digits || contact.phone === phone);
+  return typeof hit?.pushName === 'string' ? hit.pushName.trim() : '';
+}
+
+function NicknameHint({ contacts, phone }) {
+  const nickname = nicknameForPhone(contacts, phone);
+  return h('span', {
+    className: nickname ? 'dim-accessNickname' : 'dim-accessNickname dim-accessNicknameEmpty',
+  }, nickname || '暂无昵称（私聊/@ 后会自动补齐）');
+}
+
 function groupDisplayName(groupJid, groups) {
   const title = groups?.[groupJid]?.title;
   if (typeof title === 'string' && title.trim()) return title.trim();
@@ -180,7 +194,8 @@ function MemberRows({
             onChange: (phone) => onChange(members.map((entry, i) => (
               i === index ? { ...entry, phone } : entry
             ))),
-          })),
+          }),
+          h(NicknameHint, { contacts, phone: member.phone })),
         h('label', { className: 'dim-accessField dim-accessUserCommand' },
           h('span', null, '命令权限'),
           h('select', {
@@ -233,7 +248,8 @@ function AdminPhones({
             disabled: disabled || locked,
             placeholder: '8613800000000',
             onChange: (next) => onChange(phones.map((entry, i) => (i === index ? next : entry))),
-          })),
+          }),
+          locked ? null : h(NicknameHint, { contacts, phone })),
         locked ? null : h('button', {
           type: 'button',
           className: 'dim-deliveryButton',

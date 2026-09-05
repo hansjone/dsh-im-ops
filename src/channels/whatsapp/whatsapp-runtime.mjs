@@ -12,7 +12,7 @@ import { t } from '../shared/i18n.mjs';
 import { ImagePromptError } from '../shared/image-prompt.mjs';
 import { trackOutboundArtifactProviderPromise } from '../shared/semantic/artifact.mjs';
 import { createWhatsappBridgeStatus, WhatsappHarnessBridge } from './whatsapp-bridge.mjs';
-import { enrichWhatsappInboundIdentities } from './whatsapp-identity.mjs';
+import { enrichWhatsappInboundIdentities, resolveWhatsappGroupSubject } from './whatsapp-identity.mjs';
 import {
   gateWhatsappInbound,
   loadWhatsappAccessGrant,
@@ -754,6 +754,7 @@ export class WhatsappRuntime {
             });
             if (handled) return;
             grant = this.#workspaces.accessGrantFor(this.#botId) ?? grant;
+            const socket = context?.socket ?? this.#session?.socket;
             const gated = await gateWhatsappInbound({
               workspaces: this.#workspaces,
               botId: this.#botId,
@@ -761,6 +762,7 @@ export class WhatsappRuntime {
               message,
               sendText,
               accountJid: this.#config.accountJid,
+              resolveGroupTitle: (groupJid) => resolveWhatsappGroupSubject(socket, groupJid),
             });
             if (!gated.allowed) {
               if (gated.accessDecision) {
