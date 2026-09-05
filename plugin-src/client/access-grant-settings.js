@@ -221,11 +221,46 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
   const [saving, setSaving] = React.useState(false);
   const [feedback, setFeedback] = React.useState(null);
   const [newGroupJid, setNewGroupJid] = React.useState('');
+  const [loadingGrant, setLoadingGrant] = React.useState(!initialGrant);
 
   React.useEffect(() => {
     setDraft(cloneGrant(normalizeAccessGrant(account?.accessGrant), ownerPhone));
     setGroupSessionScope(normalizeGroupSessionScope(account?.groupSessionScope));
   }, [account?.botId, initialKey, account?.groupSessionScope, ownerPhone]);
+
+  // Settings open payload historically omitted accessGrant; always refresh from status.
+  React.useEffect(() => {
+    if (typeof rpcCall !== 'function' || !account?.botId) return undefined;
+    let cancelled = false;
+    setLoadingGrant(true);
+    void (async () => {
+      try {
+        const value = unwrapRpcResult(await rpcCall('connection.status', {}));
+        if (cancelled) return;
+        const bot = Array.isArray(value?.bots)
+          ? value.bots.find((entry) => entry?.botId === account.botId)
+          : null;
+        const grant = normalizeAccessGrant(bot?.accessGrant);
+        if (grant) {
+          setDraft(cloneGrant(grant, ownerPhone));
+          onSaved?.(grant);
+        }
+        if (bot?.groupSessionScope) {
+          setGroupSessionScope(normalizeGroupSessionScope(bot.groupSessionScope));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setFeedback({
+            tone: 'error',
+            message: error?.message || '无法读取访问授权，请返回刷新后重试。',
+          });
+        }
+      } finally {
+        if (!cancelled) setLoadingGrant(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [account?.botId, rpcCall, ownerPhone]);
 
   const contacts = draft.contacts ?? [];
   const knownGroupJids = React.useMemo(() => {
@@ -319,6 +354,9 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
     className: 'dim-accessPage',
     onSubmit: (event) => void save(event),
   },
+  loadingGrant
+    ? h('div', { className: 'dim-accessState', 'aria-busy': 'true' }, '正在读取分级访问设置…')
+    : null,
   h('p', { className: 'dim-accessUsersEmpty' },
     'WhatsApp 按电话号码授权：全局管理员管私聊；群管理员只批本群。成员不可跨群、有群权也不自动获得私聊权。'),
   h(AdminPhones, {

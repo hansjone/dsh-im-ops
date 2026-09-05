@@ -11,6 +11,10 @@ const EN = Object.freeze({
   '机器人设置页签': 'Bot settings tabs',
   '投递设置': 'Delivery settings',
   '访问设置': 'Access settings',
+  "无法读取访问授权，请返回刷新后重试。": "Could not load the access grant. Go back, refresh, and try again.",
+
+  "正在读取分级访问设置…": "Loading graded access settings…",
+
   "加本群": "Add to group",
 
   "已在本群": "Already in group",

@@ -220,6 +220,8 @@ export function WhatsappAccountCard({
             botName: account.bot.name,
             connected: account.connected,
             accessPolicy: account.accessPolicy,
+            accessGrant: account.accessGrant,
+            groupSessionScope: account.groupSessionScope,
           }))),
       h(WorkspaceEditor, {
         workspace: account.workspace,
