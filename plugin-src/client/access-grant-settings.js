@@ -71,6 +71,19 @@ function contactLabel(contact) {
   return `${name} · ${phone}`;
 }
 
+function groupDisplayName(groupJid, groups) {
+  const title = groups?.[groupJid]?.title;
+  if (typeof title === 'string' && title.trim()) return title.trim();
+  const raw = String(groupJid ?? '');
+  const id = raw.replace(/@g\.us$/i, '');
+  if (id.length > 14) return `${id.slice(0, 10)}…@g.us`;
+  return raw || '未知群';
+}
+
+function digitsOnly(value) {
+  return String(value ?? '').replace(/[^\d]/g, '');
+}
+
 function PhoneTypeahead({
   value,
   onChange,
@@ -80,16 +93,28 @@ function PhoneTypeahead({
   requirePhone = true,
 }) {
   const [query, setQuery] = React.useState(value || '');
+  const [open, setOpen] = React.useState(false);
+  const blurTimer = React.useRef(null);
   React.useEffect(() => { setQuery(value || ''); }, [value]);
+  React.useEffect(() => () => {
+    if (blurTimer.current) window.clearTimeout(blurTimer.current);
+  }, []);
+
   const q = query.trim().toLowerCase();
+  const queryDigits = digitsOnly(query);
   const suggestions = (contacts ?? [])
     .filter((contact) => {
       if (requirePhone && !contact.phone) return false;
+      // Exact current value: hide the redundant chip that was covering the next field.
+      if (contact.phone && contact.phone === queryDigits && contact.phone === digitsOnly(value)) {
+        return false;
+      }
       if (!q) return Boolean(contact.phone);
-      return (contact.phone ?? '').includes(q.replace(/[^\d]/g, ''))
+      return (contact.phone ?? '').includes(queryDigits)
         || (contact.pushName ?? '').toLowerCase().includes(q);
     })
     .slice(0, 8);
+  const showSuggestions = open && !disabled && suggestions.length > 0;
 
   return h('div', { className: 'dim-accessTypeahead' },
     h('input', {
@@ -100,23 +125,34 @@ function PhoneTypeahead({
       autoCapitalize: 'none',
       autoCorrect: 'off',
       spellCheck: false,
+      autoComplete: 'off',
+      onFocus: () => {
+        if (blurTimer.current) window.clearTimeout(blurTimer.current);
+        setOpen(true);
+      },
+      onBlur: () => {
+        blurTimer.current = window.setTimeout(() => setOpen(false), 120);
+      },
       onChange: (event) => {
         setQuery(event.target.value);
         onChange(event.target.value);
+        setOpen(true);
       },
     }),
-    suggestions.length === 0 ? null : h('ul', { className: 'dim-accessSuggestList' },
+    showSuggestions ? h('ul', { className: 'dim-accessSuggestList', role: 'listbox' },
       suggestions.map((contact) => h('li', { key: `${contact.phone}-${contact.lids?.[0] ?? ''}` },
         h('button', {
           type: 'button',
-          className: 'dim-deliveryButton',
+          className: 'dim-accessSuggestItem',
           disabled: disabled || (requirePhone && !contact.phone),
+          onMouseDown: (event) => event.preventDefault(),
           onClick: () => {
             if (!contact.phone) return;
             setQuery(contact.phone);
             onChange(contact.phone);
+            setOpen(false);
           },
-        }, contactLabel(contact))))));
+        }, contactLabel(contact))))) : null);
 }
 
 function MemberRows({
@@ -125,9 +161,13 @@ function MemberRows({
   contacts,
   disabled,
   onChange,
+  nested = false,
 }) {
-  return h('fieldset', { className: 'dim-accessScene', disabled },
-    h('legend', null, title),
+  return h(nested ? 'div' : 'fieldset', {
+    className: nested ? 'dim-accessSubblock' : 'dim-accessScene',
+    ...(nested ? {} : { disabled }),
+  },
+    nested ? h('h4', { className: 'dim-accessSubblockTitle' }, title) : h('legend', null, title),
     h('ul', { className: 'dim-accessUserList' }, members.map((member, index) =>
       h('li', { key: `member-${index}`, className: 'dim-accessUserRow' },
         h('label', { className: 'dim-accessField dim-accessUserId' },
@@ -174,10 +214,14 @@ function AdminPhones({
   disabled,
   lockedPhone,
   onChange,
+  nested = false,
 }) {
-  return h('fieldset', { className: 'dim-accessScene', disabled },
-    h('legend', null, title),
-    help ? h('p', { className: 'dim-accessUsersEmpty' }, help) : null,
+  return h(nested ? 'div' : 'fieldset', {
+    className: nested ? 'dim-accessSubblock' : 'dim-accessScene',
+    ...(nested ? {} : { disabled }),
+  },
+    nested ? h('h4', { className: 'dim-accessSubblockTitle' }, title) : h('legend', null, title),
+    help ? h('p', { className: 'dim-accessHint' }, help) : null,
     h('ul', { className: 'dim-accessUserList' }, phones.map((phone, index) => {
       const locked = lockedPhone && phone === lockedPhone;
       return h('li', { key: `admin-${index}`, className: 'dim-accessUserRow' },
@@ -390,9 +434,9 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
             .filter((entry) => entry.status === 'pending' || !entry.status)
             .map((entry) => h('li', { key: entry.id, className: 'dim-accessUserRow' },
               h('div', { className: 'dim-accessField' },
-                h('span', null, entry.kind === 'group'
-                  ? ['群聊', ' ', entry.groupJid].join('')
-                  : '私聊'),
+                h('span', null, ...(entry.kind === 'group'
+                  ? ['群聊 · ', groupDisplayName(entry.groupJid, draft.groups)]
+                  : ['私聊'])),
                 h('strong', null, entry.pushName || entry.phone || entry.lid || entry.id),
                 entry.unresolved
                   ? h('span', null, '（电话未解析，请先在联系人中确认）')
@@ -421,13 +465,16 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
           '尚无已知群。可在下方粘贴群 JID（…@g.us），或等群内有人 @ 机器人后自动出现。')
       : knownGroupJids.map((groupJid) => {
           const group = draft.groups[groupJid] ?? { title: '', admins: [], members: [] };
-          return h('div', { key: groupJid, className: 'dim-accessScene', 'data-scene': 'group-grant' },
-            h('h3', null, group.title || groupJid),
+          return h('div', { key: groupJid, className: 'dim-accessGroupCard' },
+            h('div', { className: 'dim-accessGroupHeading' },
+              h('h3', null, groupDisplayName(groupJid, draft.groups)),
+              h('code', { className: 'dim-accessGroupJid' }, groupJid)),
             h('label', { className: 'dim-accessField' },
-              h('span', null, '群备注名'),
+              h('span', null, '群名称'),
               h('input', {
                 value: group.title ?? '',
                 maxLength: 128,
+                placeholder: '填写便于识别的群名称',
                 onChange: (event) => setDraft((current) => ({
                   ...current,
                   groups: {
@@ -443,6 +490,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
               contacts,
               disabled: saving,
               lockedPhone: null,
+              nested: true,
               onChange: (admins) => setDraft((current) => ({
                 ...current,
                 groups: {
@@ -456,6 +504,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
               members: group.members ?? [],
               contacts,
               disabled: saving,
+              nested: true,
               onChange: (members) => setDraft((current) => ({
                 ...current,
                 groups: {
@@ -532,6 +581,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
           }, alreadyDirect ? '已在私聊' : '加私聊') : null,
           ...groupTargets.map((groupJid) => {
             const group = draft.groups[groupJid] ?? { admins: [], members: [] };
+            const name = groupDisplayName(groupJid, draft.groups);
             const already = group.admins.includes(phone)
               || group.members.some((m) => m.phone === phone);
             return h('button', {
@@ -560,9 +610,12 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
                     },
                   };
                 });
-                setFeedback({ tone: 'success', message: '已加入本群授权，记得点保存。' });
+                setFeedback({
+                  tone: 'success',
+                  message: ['已加入群授权：', name, '。记得点保存。'].join(''),
+                });
               },
-            }, already ? '已在本群' : '加本群');
+            }, [already ? '已在群：' : '加入群：', name].join(''));
           }));
         }))),
   h('fieldset', { className: 'dim-accessScene', disabled: saving },

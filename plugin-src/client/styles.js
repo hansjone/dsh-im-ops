@@ -468,12 +468,22 @@ const CSS = String.raw`
 .dim-accessFeedback[data-tone="success"] { color: var(--dsw-alias-state-success-primary, #20a162); }
 .dim-accessFeedback[data-tone="error"] { color: var(--dsw-alias-state-error-primary, #d54941); }
 .dim-accessActions { display: flex; justify-content: flex-end; }
-.dim-accessTypeahead { position: relative; min-width: 0; display: grid; gap: 6px; }
+.dim-accessTypeahead { position: relative; z-index: 1; min-width: 0; display: grid; gap: 0; }
+.dim-accessTypeahead:focus-within { z-index: 6; }
 .dim-accessTypeahead > input { width: 100%; min-width: 0; height: 36px; padding: 0 9px; border: 1px solid var(--dsw-alias-border-l2, #dfe1e5); border-radius: 7px; color: var(--dsw-alias-label-primary, #1f2329); background: var(--dsw-alias-bg-layer-1, #fff); font: inherit; font-size: 12px; }
 .dim-accessTypeahead > input:focus { outline: 2px solid color-mix(in srgb, var(--dsw-alias-state-business-primary, #3370ff) 28%, transparent); border-color: var(--dsw-alias-state-business-primary, #3370ff); }
-.dim-accessSuggestList { position: absolute; z-index: 4; top: calc(100% + 4px); left: 0; right: 0; margin: 0; padding: 6px; list-style: none; display: grid; gap: 4px; max-height: 220px; overflow: auto; border: 1px solid var(--dsw-alias-border-l2, #dfe1e5); border-radius: 9px; background: var(--dsw-alias-bg-layer-1, #fff); box-shadow: 0 8px 24px color-mix(in srgb, #1f2329 12%, transparent); }
+.dim-accessSuggestList { position: absolute; z-index: 7; top: calc(100% + 4px); left: 0; right: 0; margin: 0; padding: 4px; list-style: none; display: grid; gap: 2px; max-height: 180px; overflow: auto; border: 1px solid var(--dsw-alias-border-l2, #dfe1e5); border-radius: 8px; background: var(--dsw-alias-bg-layer-1, #fff); box-shadow: 0 10px 28px color-mix(in srgb, #1f2329 16%, transparent); }
 .dim-accessSuggestList li { min-width: 0; }
-.dim-accessSuggestList .dim-deliveryButton { width: 100%; justify-content: flex-start; text-align: left; white-space: normal; }
+.dim-accessSuggestItem { width: 100%; min-height: 32px; padding: 6px 9px; border: 0; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-primary, #1f2329); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.dim-accessSuggestItem:hover, .dim-accessSuggestItem:focus-visible { background: var(--dsw-alias-bg-module-platform, #f7f8fa); }
+.dim-accessSubblock { min-width: 0; display: grid; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--dsw-alias-border-l1, #eef0f3); }
+.dim-accessSubblockTitle { margin: 0; color: var(--dsw-alias-label-primary, #1f2329); font-size: 13px; line-height: 20px; font-weight: 620; }
+.dim-accessHint { margin: 0; color: var(--dsw-alias-label-tertiary, #8f959e); font-size: 11px; line-height: 17px; }
+.dim-accessGroupCard { min-width: 0; display: grid; gap: 12px; margin-top: 12px; padding: 14px; border: 1px solid var(--dsw-alias-border-l1, #eef0f3); border-radius: 10px; background: var(--dsw-alias-bg-module-platform, #f7f8fa); }
+.dim-accessGroupHeading { min-width: 0; display: grid; gap: 2px; }
+.dim-accessGroupHeading h3 { margin: 0; color: var(--dsw-alias-label-primary, #1f2329); font-size: 14px; line-height: 21px; font-weight: 650; }
+.dim-accessGroupJid { color: var(--dsw-alias-label-tertiary, #8f959e); font-size: 11px; line-height: 16px; overflow-wrap: anywhere; }
+.dim-accessUserRow { position: relative; z-index: 0; overflow: visible; }
 .dim-panel .dim-botCard .dim-cardFooter { margin-top: 0; }
 .dim-panel .ddt-headingCopy { display: none; }
 .dim-panel .ddt-qrFrame, .dim-panel .ddt-countdown { width: min(270px, 100%); }

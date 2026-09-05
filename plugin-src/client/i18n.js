@@ -11,6 +11,22 @@ const EN = Object.freeze({
   '机器人设置页签': 'Bot settings tabs',
   '投递设置': 'Delivery settings',
   '访问设置': 'Access settings',
+  "群聊 · ": "Group · ",
+
+  "。记得点保存。": ". Remember to save.",
+
+  "已加入群授权：": "Added group access for: ",
+
+  "加入群：": "Add to group: ",
+
+  "已在群：": "Already in group: ",
+
+  "填写便于识别的群名称": "Enter a readable group name",
+
+  "群名称": "Group name",
+
+  "未知群": "Unknown group",
+
   "无法读取访问授权，请返回刷新后重试。": "Could not load the access grant. Go back, refresh, and try again.",
 
   "正在读取分级访问设置…": "Loading graded access settings…",
