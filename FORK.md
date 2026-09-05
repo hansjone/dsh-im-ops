@@ -3,7 +3,7 @@
 本仓库是 [`@xmanrui/dsh-im@4.9.1`](https://github.com/xmanrui/dsh-im) 的 **完整 fork**（九渠道 + AI Office 均保留），用于 Netx / 运维场景下自控：
 
 - 访问控制（入站白名单 / 群策略）
-- 会话策略（例如群聊拆个人 Session）
+- 会话策略（群聊按发言人拆分 Session，可配置）
 - 通告 / 投递默认与文案
 
 上游 remote 名为 `upstream`。不要与社区包 `@xmanrui/dsh-im` 同时装进同一 profile。
@@ -19,21 +19,26 @@
 cd D:\project\chatgpt\dsh-im-ops
 npm install
 npm run build
-dsh plugin --profile web add -w "D:\project\chatgpt\dsh-im-ops"
+dsh plugin --profile web add -w "github:hansjone/dsh-im-ops"
+# 或本地：dsh plugin --profile web add -w "D:\project\chatgpt\dsh-im-ops"
 # 重启 dsh web
 ```
 
-包名：`dsh-im-ops@4.9.1-ops.0`（cordis id：`dsh-im-ops`）。
+包名：`dsh-im-ops@4.9.1-ops.1`（cordis id：`dsh-im-ops`）。
 
 扫码态一般仍在 `~/.dsh/integrations/…`；换包后若异常，在 IM 设置里重新关联设备。
 
-## 第一刀改动方向（尚未改业务逻辑）
+## 已落地的运维改动
 
-1. WhatsApp / 通用 access mode：运维友好的默认与设置文案  
-2. 群 Session key：对齐 oclaw `user_in_chat`（可配置）  
-3. 投递默认目标 / 与 netxops 协作说明  
+1. **群 Session 策略**（对齐 oclaw `user_in_chat`）
+   - 默认：`user_in_chat` → 群会话 key 为 `group:<chatId>:user:<senderId>`
+   - 可选：`chat` → 整群共享 `group:<chatId>`（上游行为）
+   - 在「访问设置」页可改；RPC：`bot.group-session-scope.set`
+   - 当前对 **WhatsApp / Telegram / Slack / Discord**（TextHarness 路径）生效；其它渠道的同策略接线后续补齐
 
-业务改动前先 `npm run build` 冒烟扫码与私聊。
+2. **访问控制**仍由本 fork 持久化（`workspaces.json` 的 `accessPolicies`），设置 UI 与上游同构，运维可直接改白名单 / open 模式
+
+3. **主动群通告**继续用既有 delivery（`botId + targetId`），与入站 Session 策略独立
 
 ## 同步上游
 
@@ -41,3 +46,5 @@ dsh plugin --profile web add -w "D:\project\chatgpt\dsh-im-ops"
 git fetch upstream --tags
 git merge v4.9.x   # 或 cherry-pick；冲突自行解决后再 build
 ```
+
+改源码后务必 `npm run build` 并推送含 `lib/` 的提交，否则 GitHub 安装会加载过期 bundle。

@@ -2,6 +2,7 @@ import QRCode from 'qrcode';
 
 import { publicConnectionTestResult } from '../../../../src/channels/shared/connection-test.mjs';
 import { SET_ACCESS_POLICY_ENDPOINT, validAccessPolicyPayload } from '../shared/access-policy-rpc.mjs';
+import { SET_GROUP_SESSION_SCOPE_ENDPOINT, validGroupSessionScopePayload } from '../shared/group-session-scope-rpc.mjs';
 import { SET_CONTEXT_ENHANCEMENT_ENDPOINT, validContextEnhancementPayload } from '../shared/context-enhancement-rpc.mjs';
 import { resolveRpcAuthority } from '../../rpc-authority.mjs';
 import { publicWorkspaceError, SET_WORKSPACE_ENDPOINT, validWorkspacePayload } from '../shared/workspace-rpc.mjs';
@@ -16,6 +17,7 @@ export const WHATSAPP_ENDPOINTS = Object.freeze({
   reconnectBot: 'bot.reconnect',
   deleteBot: 'bot.delete',
   setAccessPolicy: SET_ACCESS_POLICY_ENDPOINT,
+  setGroupSessionScope: SET_GROUP_SESSION_SCOPE_ENDPOINT,
   setWorkspace: SET_WORKSPACE_ENDPOINT,
   setAgentPreset: SET_AGENT_PRESET_ENDPOINT,
   setContextEnhancement: SET_CONTEXT_ENHANCEMENT_ENDPOINT,
@@ -57,6 +59,10 @@ function payloadFailure(endpoint, payload) {
   if (endpoint === WHATSAPP_ENDPOINTS.setAccessPolicy) {
     return validAccessPolicyPayload(payload)
       ? null : '请提交有效的访问设置。';
+  }
+  if (endpoint === WHATSAPP_ENDPOINTS.setGroupSessionScope) {
+    return validGroupSessionScopePayload(payload)
+      ? null : '请提交有效的群会话策略。';
   }
   if (endpoint === WHATSAPP_ENDPOINTS.setWorkspace) {
     return validWorkspacePayload(payload)
@@ -188,6 +194,13 @@ export function createWhatsappRpcHandler(controller, { encodeQr = qrDataUrl } = 
         value = await controller.updateAccessPolicy(
           payload.botId,
           payload.policy,
+          (status) => publicStatus(status, cachedEncode),
+        );
+      } else if (endpoint === WHATSAPP_ENDPOINTS.setGroupSessionScope) {
+        if (typeof controller.updateGroupSessionScope !== 'function') throw new Error('Group session scope update is unavailable');
+        value = await controller.updateGroupSessionScope(
+          payload.botId,
+          payload.groupSessionScope,
           (status) => publicStatus(status, cachedEncode),
         );
       } else {

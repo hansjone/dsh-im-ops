@@ -17,6 +17,11 @@ import {
   normalizeAccessPolicy,
   validateAccessPolicy,
 } from './access-policy.mjs';
+import {
+  DEFAULT_GROUP_SESSION_SCOPE,
+  normalizeGroupSessionScope,
+  validateGroupSessionScope,
+} from './session-scope.mjs';
 import { CONNECTION_TEST_STATE_IDENTITY } from './connection-test.mjs';
 import {
   DEFAULT_CONTEXT_ENHANCEMENT_CONFIG,
@@ -179,6 +184,19 @@ function normalizeDocument(value) {
       }
     }
   }
+  let groupSessionScopes = {};
+  if (value.groupSessionScopes !== undefined) {
+    if (!value.groupSessionScopes || typeof value.groupSessionScopes !== 'object'
+      || Array.isArray(value.groupSessionScopes)) return null;
+    for (const [botId, scope] of Object.entries(value.groupSessionScopes)) {
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(botId)) return null;
+      try {
+        groupSessionScopes[botId] = validateGroupSessionScope(scope);
+      } catch {
+        return null;
+      }
+    }
+  }
   const contextEnhancement = Object.create(null);
   // Enhancement damage is isolated from the existing workspace/preset document.
   if (value.contextEnhancement && typeof value.contextEnhancement === 'object'
@@ -200,6 +218,7 @@ function normalizeDocument(value) {
     version,
     workspaces,
     agentPresets,
+    groupSessionScopes,
     contextEnhancement,
     deliveryTargets,
     accessPolicies,
@@ -210,12 +229,14 @@ function storedDocument({
   version,
   workspaces,
   agentPresets,
+  groupSessionScopes,
   contextEnhancement,
   deliveryTargets,
   accessPolicies,
 }) {
   const document = { version, workspaces };
   if (Object.keys(agentPresets).length > 0) document.agentPresets = agentPresets;
+  if (Object.keys(groupSessionScopes).length > 0) document.groupSessionScopes = groupSessionScopes;
   if (Object.keys(contextEnhancement).length > 0) {
     document.contextEnhancement = contextEnhancement;
   }
@@ -267,6 +288,7 @@ export class BotWorkspaceStore {
   #version = 1;
   #workspaces = {};
   #agentPresets = {};
+  #groupSessionScopes = {};
   #contextEnhancement = {};
   #deliveryTargets = Object.create(null);
   #accessPolicies = Object.create(null);
@@ -293,6 +315,7 @@ export class BotWorkspaceStore {
       this.#version = normalized.version;
       this.#workspaces = normalized.workspaces;
       this.#agentPresets = normalized.agentPresets;
+      this.#groupSessionScopes = normalized.groupSessionScopes;
       this.#contextEnhancement = normalized.contextEnhancement;
       this.#deliveryTargets = normalized.deliveryTargets;
       this.#accessPolicies = normalized.accessPolicies;
@@ -301,6 +324,7 @@ export class BotWorkspaceStore {
       this.#version = 1;
       this.#workspaces = {};
       this.#agentPresets = {};
+      this.#groupSessionScopes = {};
       this.#contextEnhancement = {};
       this.#deliveryTargets = Object.create(null);
       this.#accessPolicies = Object.create(null);
@@ -333,6 +357,14 @@ export class BotWorkspaceStore {
 
   agentPresetFor(botId) {
     return this.#agentPresets[botIdOf(botId)] ?? null;
+  }
+
+  groupSessionScopeFor(botId) {
+    const id = botIdOf(botId);
+    if (this.has(id) && Object.hasOwn(this.#groupSessionScopes, id)) {
+      return normalizeGroupSessionScope(this.#groupSessionScopes[id]);
+    }
+    return DEFAULT_GROUP_SESSION_SCOPE;
   }
 
   contextEnhancementFor(botId) {
@@ -565,6 +597,38 @@ export class BotWorkspaceStore {
     });
   }
 
+  async setGroupSessionScope(botId, value, { incarnation } = {}) {
+    const id = botIdOf(botId);
+    if (!this.has(id)
+      || (incarnation !== undefined && incarnation !== this.incarnationFor(id))) {
+      const error = new Error('找不到要修改的机器人。');
+      error.code = 'workspace-bot-not-found';
+      throw error;
+    }
+    const scope = validateGroupSessionScope(value);
+    return this.#enqueue(id, async () => {
+      if (!this.has(id)
+        || (incarnation !== undefined && incarnation !== this.incarnationFor(id))) {
+        const error = new Error('找不到要修改的机器人。');
+        error.code = 'workspace-bot-not-found';
+        throw error;
+      }
+      const previous = Object.hasOwn(this.#groupSessionScopes, id)
+        ? this.#groupSessionScopes[id]
+        : undefined;
+      if (previous === scope) return scope;
+      this.#groupSessionScopes[id] = scope;
+      try {
+        await this.#persist();
+      } catch (error) {
+        if (previous === undefined) delete this.#groupSessionScopes[id];
+        else this.#groupSessionScopes[id] = previous;
+        throw error;
+      }
+      return scope;
+    });
+  }
+
   async setContextEnhancement(botId, value, { incarnation } = {}) {
     const id = botIdOf(botId);
     const expectedIncarnation = incarnation === undefined ? this.incarnationFor(id) : incarnation;
@@ -764,6 +828,7 @@ export class BotWorkspaceStore {
     const candidates = new Set([
       ...Object.keys(this.#workspaces),
       ...Object.keys(this.#agentPresets),
+      ...Object.keys(this.#groupSessionScopes),
       ...Object.keys(this.#contextEnhancement),
       ...Object.keys(this.#deliveryTargets),
       ...Object.keys(this.#accessPolicies),
@@ -783,6 +848,7 @@ export class BotWorkspaceStore {
           ...bot,
           workspace: this.workspaceFor(bot.botId),
           agentPreset: this.agentPresetFor(bot.botId),
+          groupSessionScope: this.groupSessionScopeFor(bot.botId),
           contextEnhancement: this.contextEnhancementFor(bot.botId),
           accessPolicy: this.accessPolicyFor(bot.botId),
         }
@@ -814,13 +880,15 @@ export class BotWorkspaceStore {
   async #retireCurrentIncarnation(id) {
     const hadWorkspace = Object.hasOwn(this.#workspaces, id);
     const hadPreset = Object.hasOwn(this.#agentPresets, id);
+    const hadGroupSessionScope = Object.hasOwn(this.#groupSessionScopes, id);
     const hadContextEnhancement = Object.hasOwn(this.#contextEnhancement, id);
     const hadDeliveryTargets = Object.hasOwn(this.#deliveryTargets, id);
     const hadAccessPolicy = Object.hasOwn(this.#accessPolicies, id);
-    const needsCleanup = hadWorkspace || hadPreset || hadContextEnhancement
+    const needsCleanup = hadWorkspace || hadPreset || hadGroupSessionScope || hadContextEnhancement
       || hadDeliveryTargets || hadAccessPolicy || this.#dirtyRemovals.has(id);
     delete this.#workspaces[id];
     delete this.#agentPresets[id];
+    delete this.#groupSessionScopes[id];
     delete this.#contextEnhancement[id];
     delete this.#deliveryTargets[id];
     delete this.#accessPolicies[id];
@@ -863,6 +931,7 @@ export class BotWorkspaceStore {
       version,
       workspaces: this.#workspaces,
       agentPresets: this.#agentPresets,
+      groupSessionScopes: this.#groupSessionScopes,
       contextEnhancement,
       deliveryTargets,
       accessPolicies,
@@ -873,6 +942,7 @@ export class BotWorkspaceStore {
   async #persistCurrentDocument() {
     if (Object.keys(this.#workspaces).length > 0
       || Object.keys(this.#agentPresets).length > 0
+      || Object.keys(this.#groupSessionScopes).length > 0
       || Object.keys(this.#contextEnhancement).length > 0
       || Object.keys(this.#deliveryTargets).length > 0
       || Object.keys(this.#accessPolicies).length > 0) {
@@ -1427,6 +1497,30 @@ export function createWorkspaceAwareController(controller, { workspaces, stateFo
       return result;
     });
   };
+
+  const updateGroupSessionScope = (botId, value, projectStatus) => {
+    const incarnation = workspaces.incarnationFor(botId);
+    const scope = validateGroupSessionScope(value);
+    return withBotTransition(botId, async () => {
+      const snapshot = await controller.status();
+      if (!snapshot?.bots?.some((bot) => bot?.botId === botId)) {
+        const error = new Error('找不到要修改的机器人。');
+        error.code = 'workspace-bot-not-found';
+        throw error;
+      }
+      const catalog = await resolveAgentPresetCatalog(agentPresetCatalog);
+      const decorated = workspaces.decorateStatus(snapshot);
+      const updated = {
+        ...decorated,
+        bots: decorated.bots.map((bot) => bot?.botId === botId
+          ? { ...bot, groupSessionScope: scope } : bot),
+        ...(catalog ? { agentPresetCatalog: catalog } : {}),
+      };
+      const result = projectStatus ? await projectStatus(updated) : updated;
+      await workspaces.setGroupSessionScope(botId, scope, { incarnation });
+      return result;
+    });
+  };
   const deleteWithWorkspace = (botId, invokeDelete) => withBotTransition(botId, async () => {
     // Fence the old runtime without changing the durable mapping. A crash
     // before the controller removes its config therefore keeps the bot's
@@ -1468,6 +1562,7 @@ export function createWorkspaceAwareController(controller, { workspaces, stateFo
       if (property === 'updateAgentPreset') return updateAgentPreset;
       if (property === 'updateContextEnhancement') return updateContextEnhancement;
       if (property === 'updateAccessPolicy') return updateAccessPolicy;
+      if (property === 'updateGroupSessionScope') return updateGroupSessionScope;
       const value = Reflect.get(target, property, target);
       if (typeof value !== 'function') return value;
       if (property === 'deleteBot') {

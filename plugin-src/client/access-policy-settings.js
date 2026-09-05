@@ -5,9 +5,15 @@ import {
   normalizeAccessPolicy,
   validateAccessPolicy,
 } from '../../src/channels/shared/access-policy.mjs';
+import {
+  DEFAULT_GROUP_SESSION_SCOPE,
+  normalizeGroupSessionScope,
+  validateGroupSessionScope,
+} from '../../src/channels/shared/session-scope.mjs';
 import { h, localizeText } from './i18n.js';
 
 export const ACCESS_POLICY_ENDPOINT = 'bot.access-policy.set';
+export const GROUP_SESSION_SCOPE_ENDPOINT = 'bot.group-session-scope.set';
 
 export const ACCESS_CHANNEL_DEFINITIONS = Object.freeze({
   weixin: Object.freeze({
@@ -262,16 +268,19 @@ export function AccessPolicySettingsPage({ channel, account, rpcCall, onSaved })
   const definition = ACCESS_CHANNEL_DEFINITIONS[channel];
   const initialPolicy = normalizeAccessPolicy(account?.accessPolicy);
   const initialKey = JSON.stringify(initialPolicy);
+  const initialScope = normalizeGroupSessionScope(account?.groupSessionScope);
   const [draft, setDraft] = React.useState(() => clonePolicy(
     initialPolicy ?? DEFAULT_ACCESS_POLICY,
   ));
+  const [groupSessionScope, setGroupSessionScope] = React.useState(initialScope);
   const [saving, setSaving] = React.useState(false);
   const [feedback, setFeedback] = React.useState(null);
 
   React.useEffect(() => {
     const next = normalizeAccessPolicy(account?.accessPolicy);
     setDraft(clonePolicy(next ?? DEFAULT_ACCESS_POLICY));
-  }, [account?.botId, initialKey]);
+    setGroupSessionScope(normalizeGroupSessionScope(account?.groupSessionScope));
+  }, [account?.botId, initialKey, account?.groupSessionScope]);
 
   React.useEffect(() => {
     setFeedback(null);
@@ -288,16 +297,27 @@ export function AccessPolicySettingsPage({ channel, account, rpcCall, onSaved })
     setSaving(true);
     try {
       const policy = validateAccessPolicy(draft);
+      const scope = validateGroupSessionScope(groupSessionScope);
       if (typeof rpcCall !== 'function') throw new Error('访问设置暂不可用。');
       const value = unwrapRpcResult(await rpcCall(ACCESS_POLICY_ENDPOINT, {
         botId: account.botId,
         policy,
       }));
+      const scopeValue = unwrapRpcResult(await rpcCall(GROUP_SESSION_SCOPE_ENDPOINT, {
+        botId: account.botId,
+        groupSessionScope: scope,
+      }));
       const saved = policyFromSnapshot(value, account.botId);
       if (!saved) throw new Error('服务没有返回已保存的访问策略，请刷新后重试。');
+      const savedScope = normalizeGroupSessionScope(
+        scopeValue?.snapshot?.bots?.find?.((bot) => bot?.botId === account.botId)?.groupSessionScope
+          ?? scopeValue?.bots?.find?.((bot) => bot?.botId === account.botId)?.groupSessionScope
+          ?? scope,
+      );
       setDraft(clonePolicy(saved));
-      onSaved?.(saved);
-      setFeedback({ tone: 'success', message: '访问设置已保存。' });
+      setGroupSessionScope(savedScope);
+      onSaved?.({ ...saved, groupSessionScope: savedScope });
+      setFeedback({ tone: 'success', message: '访问与群会话设置已保存。' });
     } catch (error) {
       setFeedback({
         tone: 'error',
@@ -335,6 +355,40 @@ export function AccessPolicySettingsPage({ channel, account, rpcCall, onSaved })
     unsupported: definition.groupSupported === false,
     onChange: (group) => { setDraft((current) => ({ ...current, group })); setFeedback(null); },
   }),
+  definition.groupSupported === false
+    ? null
+    : h('fieldset', {
+      className: 'dim-accessScene',
+      disabled: saving,
+      'data-scene': 'group-session',
+      'aria-label': localizeText('群会话策略'),
+    },
+    h('legend', null,
+      h('span', { className: 'dim-accessLegendContent' },
+        h('span', null, '群会话策略'),
+        h('span', { className: 'dim-channelHelp dim-accessLegendHelp' },
+          h('button', {
+            type: 'button',
+            className: 'dim-channelHelpButton',
+            'aria-label': localizeText('查看群会话策略说明'),
+          }, h('span', { 'aria-hidden': true }, '?')),
+          h('span', {
+            className: 'dim-channelTooltip dim-accessHelpTooltip',
+            role: 'tooltip',
+          }, '运维默认按发言人拆分 Session，避免同群多人互相打断；可选改回整群共享 Session。')))),
+    h('div', { className: 'dim-accessControls' },
+      h('label', { className: 'dim-accessField' },
+        h('span', null, '群内 Session 绑定'),
+        h('select', {
+          value: groupSessionScope || DEFAULT_GROUP_SESSION_SCOPE,
+          'aria-label': localizeText('群内 Session 绑定'),
+          onChange: (event) => {
+            setGroupSessionScope(event.target.value);
+            setFeedback(null);
+          },
+        },
+        h('option', { value: 'user_in_chat' }, '按发言人拆分（推荐）'),
+        h('option', { value: 'chat' }, '整群共享一个 Session'))))),
   feedback ? h('p', {
     className: 'dim-accessFeedback',
     'data-tone': feedback.tone,
@@ -347,5 +401,5 @@ export function AccessPolicySettingsPage({ channel, account, rpcCall, onSaved })
       className: 'dim-deliveryButton',
       'data-kind': 'primary',
       disabled: saving || !initialPolicy,
-    }, saving ? '正在保存…' : '保存访问设置')));
+    }, saving ? '正在保存…' : '保存访问与会话设置')));
 }

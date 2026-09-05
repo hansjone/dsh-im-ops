@@ -121,6 +121,7 @@ export async function createTokenProductionController(ctx, config, internals, de
         state: workspaceScope.state,
         contextEnhancement: { botId, getSettings: () => workspaces.contextEnhancementFor(botId) },
         accessPolicy: accessPolicyProvider(workspaces, botId, { channel, config: botConfig }),
+        groupSessionScope: { getScope: () => workspaces.groupSessionScopeFor(botId) },
         replyTimeoutMs: config.replyTimeoutMs ?? 600_000,
         connectTimeoutMs: config.connectTimeoutMs ?? 20_000,
         logger: {

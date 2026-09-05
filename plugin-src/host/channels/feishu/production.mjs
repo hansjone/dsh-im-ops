@@ -209,6 +209,7 @@ export async function createProductionController(ctx, config = {}, internals = {
         accessPolicy: accessPolicyProvider(workspaces, id, {
           channel: 'feishu', config: botConfig,
         }),
+        groupSessionScope: { getScope: () => workspaces.groupSessionScopeFor(id) },
         replyTimeoutMs: config.replyTimeoutMs ?? 600_000,
         slashCommands: config.slashCommands !== false,
         ...(wsAgent ? { wsAgent } : {}),

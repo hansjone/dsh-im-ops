@@ -62,6 +62,11 @@ import {
   setLastMessageFailure,
 } from './message-failure.mjs';
 import { beginStatusReaction } from './status-reaction.mjs';
+import {
+  conversationKeyFor,
+  DEFAULT_GROUP_SESSION_SCOPE,
+  normalizeGroupSessionScope,
+} from './session-scope.mjs';
 
 const INTERACTION_RESOLVED_TEXT = '这个问题已在其他客户端处理，无需再次回答。';
 const FILE_ONLY_COMPLETION_TEXT = '任务已完成。';
@@ -137,6 +142,8 @@ export class TextHarnessBridge {
   #state;
   #contextEnhancement;
   #accessPolicy;
+  /** @type {string | { getScope?: () => string }} */
+  #groupSessionScope;
   #status;
   #logger;
   #replyTimeoutMs;
@@ -158,6 +165,7 @@ export class TextHarnessBridge {
     state,
     contextEnhancement,
     accessPolicy,
+    groupSessionScope = DEFAULT_GROUP_SESSION_SCOPE,
     status = createTextBridgeStatus(),
     logger = console,
     replyTimeoutMs = 600_000,
@@ -172,6 +180,7 @@ export class TextHarnessBridge {
     this.#state = state;
     this.#contextEnhancement = contextEnhancement;
     this.#accessPolicy = accessPolicy;
+    this.#groupSessionScope = groupSessionScope;
     this.#status = status;
     this.#logger = logger;
     this.#replyTimeoutMs = replyTimeoutMs;
@@ -184,6 +193,15 @@ export class TextHarnessBridge {
 
   get status() {
     return structuredClone(this.#status);
+  }
+
+  #resolveGroupSessionScope() {
+    const configured = this.#groupSessionScope;
+    if (configured && typeof configured === 'object'
+      && typeof configured.getScope === 'function') {
+      return normalizeGroupSessionScope(configured.getScope());
+    }
+    return normalizeGroupSessionScope(configured);
   }
 
   accept(message, { contextSnapshot, accessDecision } = {}) {
@@ -262,7 +280,12 @@ export class TextHarnessBridge {
       );
     }
 
-    const key = `${normalized.kind}:${normalized.conversationId}`;
+    const key = conversationKeyFor({
+      kind: normalized.kind,
+      conversationId: normalized.conversationId,
+      senderId,
+      groupSessionScope: this.#resolveGroupSessionScope(),
+    });
     const pending = this.#pendingInteractions.get(key);
     const text = cleanText(normalized.content);
     const batchCommand = isBatchInputCommand(text);

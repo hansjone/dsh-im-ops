@@ -407,6 +407,7 @@ export class SlackRuntime {
   #state;
   #contextEnhancement;
   #accessPolicy;
+  #groupSessionScope;
   #logger;
   #replyTimeoutMs;
   #connectTimeoutMs;
@@ -432,6 +433,7 @@ export class SlackRuntime {
     state,
     contextEnhancement,
     accessPolicy,
+    groupSessionScope,
     logger = console,
     replyTimeoutMs = 600_000,
     connectTimeoutMs = 20_000,
@@ -449,6 +451,7 @@ export class SlackRuntime {
     this.#state = state;
     this.#contextEnhancement = contextEnhancement;
     this.#accessPolicy = accessPolicy;
+    this.#groupSessionScope = groupSessionScope;
     this.#logger = logger;
     this.#replyTimeoutMs = replyTimeoutMs;
     this.#connectTimeoutMs = connectTimeoutMs;
@@ -527,6 +530,7 @@ export class SlackRuntime {
         state: this.#state,
         contextEnhancement: this.#contextEnhancement,
         accessPolicy: this.#accessPolicy,
+        groupSessionScope: this.#groupSessionScope,
         status: this.#status,
         logger: this.#logger,
         replyTimeoutMs: this.#replyTimeoutMs,

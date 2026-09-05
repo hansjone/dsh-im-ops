@@ -122,6 +122,7 @@ export async function createProductionController(ctx, config = {}, internals = {
         accessPolicy: accessPolicyProvider(workspaces, botId, {
           channel: 'dingtalk', config: botConfig,
         }),
+        groupSessionScope: { getScope: () => workspaces.groupSessionScopeFor(botId) },
         replyTimeoutMs: config.replyTimeoutMs ?? 600_000,
         maxMessageChars: config.maxMessageChars ?? 4_000,
         connectTimeoutMs: config.connectTimeoutMs ?? 15_000,

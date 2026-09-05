@@ -1,6 +1,7 @@
 import QRCode from 'qrcode';
 import { SET_CONTEXT_ENHANCEMENT_ENDPOINT, validContextEnhancementPayload } from '../shared/context-enhancement-rpc.mjs';
 import { SET_ACCESS_POLICY_ENDPOINT, validAccessPolicyPayload } from '../shared/access-policy-rpc.mjs';
+import { SET_GROUP_SESSION_SCOPE_ENDPOINT, validGroupSessionScopePayload } from '../shared/group-session-scope-rpc.mjs';
 import { resolveRpcAuthority } from '../../rpc-authority.mjs';
 import {
   publicWorkspaceError,
@@ -29,6 +30,7 @@ export const WEIXIN_ENDPOINTS = Object.freeze({
   setAgentPreset: SET_AGENT_PRESET_ENDPOINT,
   setContextEnhancement: SET_CONTEXT_ENHANCEMENT_ENDPOINT,
   setAccessPolicy: SET_ACCESS_POLICY_ENDPOINT,
+  setGroupSessionScope: SET_GROUP_SESSION_SCOPE_ENDPOINT,
 });
 export const WEIXIN_RPC_ENDPOINTS = Object.freeze(Object.values(WEIXIN_ENDPOINTS));
 
@@ -94,6 +96,10 @@ function payloadFailure(endpoint, payload) {
   if (endpoint === WEIXIN_ENDPOINTS.setAccessPolicy) {
     return validAccessPolicyPayload(payload)
       ? null : '请提交有效的访问设置。';
+  }
+  if (endpoint === WEIXIN_ENDPOINTS.setGroupSessionScope) {
+    return validGroupSessionScopePayload(payload)
+      ? null : '请提交有效的群会话策略。';
   }
   return 'Unknown Weixin endpoint.';
 }
@@ -228,6 +234,11 @@ export function createWeixinRpcHandler(controller, { encodeQr = qrDataUrl } = {}
         if (typeof controller.updateAccessPolicy !== 'function') throw new Error('Access policy update is unavailable');
         value = await controller.updateAccessPolicy(
           payload.botId, payload.policy, (status) => publicStatus(status, cachedEncode),
+        );
+      } else if (endpoint === WEIXIN_ENDPOINTS.setGroupSessionScope) {
+        if (typeof controller.updateGroupSessionScope !== 'function') throw new Error('Group session scope update is unavailable');
+        value = await controller.updateGroupSessionScope(
+          payload.botId, payload.groupSessionScope, (status) => publicStatus(status, cachedEncode),
         );
       } else if (endpoint === WEIXIN_ENDPOINTS.setAgentPreset) {
         if (typeof controller.updateAgentPreset !== 'function') throw new Error('Agent preset update is unavailable');

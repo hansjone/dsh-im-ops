@@ -625,6 +625,7 @@ export class WhatsappRuntime {
   #state;
   #contextEnhancement;
   #accessPolicy;
+  #groupSessionScope;
   #logger;
   #replyTimeoutMs;
   #connectTimeoutMs;
@@ -644,6 +645,7 @@ export class WhatsappRuntime {
     state,
     contextEnhancement,
     accessPolicy,
+    groupSessionScope,
     logger = console,
     replyTimeoutMs = 600_000,
     connectTimeoutMs = 30_000,
@@ -659,6 +661,7 @@ export class WhatsappRuntime {
     this.#state = state;
     this.#contextEnhancement = contextEnhancement;
     this.#accessPolicy = accessPolicy;
+    this.#groupSessionScope = groupSessionScope;
     this.#logger = logger;
     this.#replyTimeoutMs = replyTimeoutMs;
     this.#connectTimeoutMs = connectTimeoutMs;
@@ -756,6 +759,7 @@ export class WhatsappRuntime {
           } : {}),
           equals: whatsappAccessPolicyIdsEqual,
         } : undefined,
+        groupSessionScope: this.#groupSessionScope,
         status: this.#status,
         logger: this.#logger,
         replyTimeoutMs: this.#replyTimeoutMs,

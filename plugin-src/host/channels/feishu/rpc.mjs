@@ -11,6 +11,7 @@ import { publicWorkspaceError, validWorkspacePayload } from '../shared/workspace
 import { validAgentPresetPayload } from '../shared/agent-preset-rpc.mjs';
 import { validContextEnhancementPayload } from '../shared/context-enhancement-rpc.mjs';
 import { SET_ACCESS_POLICY_ENDPOINT, validAccessPolicyPayload } from '../shared/access-policy-rpc.mjs';
+import { SET_GROUP_SESSION_SCOPE_ENDPOINT, validGroupSessionScopePayload } from '../shared/group-session-scope-rpc.mjs';
 import { normalizeContextEnhancementConfig } from '../../../../src/channels/shared/context-enhancement.mjs';
 import {
   isFeishuGroupResponseMode,
@@ -24,6 +25,7 @@ import {
 export const FEISHU_ENDPOINTS = Object.freeze({
   ...FEISHU_CLIENT_ENDPOINTS,
   setAccessPolicy: SET_ACCESS_POLICY_ENDPOINT,
+  setGroupSessionScope: SET_GROUP_SESSION_SCOPE_ENDPOINT,
 });
 export { FEISHU_RPC_CHANNEL };
 export const FEISHU_MULTI_ENDPOINTS = Object.freeze({
@@ -433,6 +435,10 @@ function validPayload(endpoint, payload) {
     return validAccessPolicyPayload(payload)
       ? null : '请提交有效的访问设置。';
   }
+  if (endpoint === FEISHU_ENDPOINTS.setGroupSessionScope) {
+    return validGroupSessionScopePayload(payload)
+      ? null : '请提交有效的群会话策略。';
+  }
   if (endpoint === FEISHU_ENDPOINTS.setGroupResponseMode) {
     return hasOnlyKeys(payload, new Set(['botId', 'groupResponseMode']))
       && safeOpaqueId(payload.botId)
@@ -695,6 +701,11 @@ export function createFeishuRpcHandler(controller, { encodeQr = qrCodeDataUrl } 
         value = await controller.updateAccessPolicy(
           payload.botId, payload.policy,
           (status) => toPublicFeishuStatus(status, { encodeQr: cachedEncodeQr }),
+        );
+      } else if (endpoint === FEISHU_ENDPOINTS.setGroupSessionScope) {
+        if (typeof controller.updateGroupSessionScope !== 'function') throw new Error('Group session scope update is unavailable');
+        value = await controller.updateGroupSessionScope(
+          payload.botId, payload.groupSessionScope, (status) => toPublicFeishuStatus(status, { encodeQr: cachedEncodeQr }),
         );
       } else if (endpoint === FEISHU_ENDPOINTS.setAgentPreset) {
         if (typeof controller.updateAgentPreset !== 'function') throw new Error('Agent preset update is unavailable');

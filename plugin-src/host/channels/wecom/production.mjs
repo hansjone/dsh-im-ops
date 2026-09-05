@@ -116,6 +116,7 @@ export async function createProductionController(ctx, config = {}, internals = {
         accessPolicy: accessPolicyProvider(workspaces, botId, {
           channel: 'wecom', config: botConfig,
         }),
+        groupSessionScope: { getScope: () => workspaces.groupSessionScopeFor(botId) },
         replyTimeoutMs: config.replyTimeoutMs ?? 600_000,
         connectTimeoutMs: config.connectTimeoutMs ?? 20_000,
         maxReconnectAttempts: config.maxReconnectAttempts ?? 10,

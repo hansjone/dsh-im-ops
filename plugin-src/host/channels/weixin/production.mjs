@@ -120,6 +120,7 @@ export async function createProductionController(ctx, config = {}, internals = {
         accessPolicy: accessPolicyProvider(workspaces, botId, {
           channel: 'weixin', config: accountConfig,
         }),
+        groupSessionScope: { getScope: () => workspaces.groupSessionScopeFor(botId) },
         replyTimeoutMs: config.replyTimeoutMs ?? 600_000,
         maxMessageChars: config.maxMessageChars ?? DEFAULT_WEIXIN_MAX_MESSAGE_CHARS,
         logger: {

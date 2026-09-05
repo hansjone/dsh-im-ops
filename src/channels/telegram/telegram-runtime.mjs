@@ -768,6 +768,7 @@ export class TelegramRuntime {
   #state;
   #contextEnhancement;
   #accessPolicy;
+  #groupSessionScope;
   #logger;
   #replyTimeoutMs;
   #createApi;
@@ -787,6 +788,7 @@ export class TelegramRuntime {
     state,
     contextEnhancement,
     accessPolicy,
+    groupSessionScope,
     logger = console,
     replyTimeoutMs = 600_000,
     createApi = (options) => new TelegramApi(options),
@@ -801,6 +803,7 @@ export class TelegramRuntime {
     this.#state = state;
     this.#contextEnhancement = contextEnhancement;
     this.#accessPolicy = accessPolicy;
+    this.#groupSessionScope = groupSessionScope;
     this.#logger = logger;
     this.#replyTimeoutMs = replyTimeoutMs;
     this.#createApi = createApi;
@@ -902,6 +905,7 @@ export class TelegramRuntime {
         state: this.#state,
         contextEnhancement: this.#contextEnhancement,
         accessPolicy: this.#accessPolicy,
+        groupSessionScope: this.#groupSessionScope,
         status: this.#status,
         logger: this.#logger,
         replyTimeoutMs: this.#replyTimeoutMs,

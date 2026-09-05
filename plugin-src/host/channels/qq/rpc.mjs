@@ -5,6 +5,7 @@ import {
 } from '../../../../src/channels/shared/connection-test.mjs';
 import { SET_CONTEXT_ENHANCEMENT_ENDPOINT, validContextEnhancementPayload } from '../shared/context-enhancement-rpc.mjs';
 import { SET_ACCESS_POLICY_ENDPOINT, validAccessPolicyPayload } from '../shared/access-policy-rpc.mjs';
+import { SET_GROUP_SESSION_SCOPE_ENDPOINT, validGroupSessionScopePayload } from '../shared/group-session-scope-rpc.mjs';
 import { resolveRpcAuthority } from '../../rpc-authority.mjs';
 import { publicWorkspaceError, SET_WORKSPACE_ENDPOINT, validWorkspacePayload } from '../shared/workspace-rpc.mjs';
 import { SET_AGENT_PRESET_ENDPOINT, validAgentPresetPayload } from '../shared/agent-preset-rpc.mjs';
@@ -22,6 +23,7 @@ export const QQ_ENDPOINTS = Object.freeze({
   setAgentPreset: SET_AGENT_PRESET_ENDPOINT,
   setContextEnhancement: SET_CONTEXT_ENHANCEMENT_ENDPOINT,
   setAccessPolicy: SET_ACCESS_POLICY_ENDPOINT,
+  setGroupSessionScope: SET_GROUP_SESSION_SCOPE_ENDPOINT,
 });
 export const QQ_RPC_ENDPOINTS = Object.freeze(Object.values(QQ_ENDPOINTS));
 
@@ -87,6 +89,10 @@ function payloadFailure(endpoint, payload) {
   if (endpoint === QQ_ENDPOINTS.setAccessPolicy) {
     return validAccessPolicyPayload(payload)
       ? null : '请提交有效的访问设置。';
+  }
+  if (endpoint === QQ_ENDPOINTS.setGroupSessionScope) {
+    return validGroupSessionScopePayload(payload)
+      ? null : '请提交有效的群会话策略。';
   }
   return 'Unknown QQ endpoint.';
 }
@@ -192,6 +198,11 @@ export function createQqRpcHandler(controller, { encodeQr = qrDataUrl } = {}) {
         if (typeof controller.updateAccessPolicy !== 'function') throw new Error('Access policy update is unavailable');
         value = await controller.updateAccessPolicy(
           payload.botId, payload.policy, (status) => publicStatus(status, cachedEncode),
+        );
+      } else if (endpoint === QQ_ENDPOINTS.setGroupSessionScope) {
+        if (typeof controller.updateGroupSessionScope !== 'function') throw new Error('Group session scope update is unavailable');
+        value = await controller.updateGroupSessionScope(
+          payload.botId, payload.groupSessionScope, (status) => publicStatus(status, cachedEncode),
         );
       } else if (endpoint === QQ_ENDPOINTS.setAgentPreset) {
         if (typeof controller.updateAgentPreset !== 'function') throw new Error('Agent preset update is unavailable');
