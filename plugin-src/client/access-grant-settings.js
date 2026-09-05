@@ -92,6 +92,30 @@ function groupDisplayName(groupJid, groups) {
   return '未命名群';
 }
 
+/**
+ * Keep contacts that still need a grant action (DM and/or a known group).
+ * Fully authorized people are hidden from the quick-grant list.
+ * @param {{ phone?: string, groupJids?: string[] }} contact
+ * @param {object} draft
+ * @param {string[]} knownGroupJids
+ */
+function contactNeedsGrantAction(contact, draft, knownGroupJids) {
+  const phone = contact?.phone || '';
+  if (!phone) return true;
+  if ((draft.globalAdmins ?? []).includes(phone)) return false;
+
+  const alreadyDirect = (draft.directMembers ?? []).some((m) => m.phone === phone);
+  const pendingGroups = (contact.groupJids ?? [])
+    .filter((jid) => knownGroupJids.includes(jid))
+    .filter((groupJid) => {
+      const group = draft.groups?.[groupJid] ?? { admins: [], members: [] };
+      return !(group.admins ?? []).includes(phone)
+        && !(group.members ?? []).some((m) => m.phone === phone);
+    });
+
+  return !alreadyDirect || pendingGroups.length > 0;
+}
+
 function digitsOnly(value) {
   return String(value ?? '').replace(/[^\d]/g, '');
 }
@@ -355,6 +379,10 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
     }
     return [...set].sort();
   }, [draft.groups, draft.pending, contacts]);
+  const actionableContacts = React.useMemo(
+    () => contacts.filter((contact) => contactNeedsGrantAction(contact, draft, knownGroupJids)),
+    [contacts, draft, knownGroupJids],
+  );
 
   const resolvePending = async (pendingId, action) => {
     setFeedback(null);
@@ -617,13 +645,25 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
   h('fieldset', { className: 'dim-accessScene', disabled: saving },
     h('legend', null, '最近联系人（自动沉淀）'),
     h('p', { className: 'dim-accessUsersEmpty' },
-      '仅记录私聊机器人，或在群里 @ 机器人的人。电话是唯一授权键，可一键加入私聊/本群授权。'),
-    contacts.length === 0
-      ? h('div', { className: 'dim-accessUsersEmpty' }, '暂无联系人。有人私聊或 @ 机器人后会出现在此。')
-      : h('ul', { className: 'dim-accessUserList' }, contacts.slice(0, 30).map((contact) => {
+      '仅记录私聊机器人，或在群里 @ 机器人的人。已有对应权限的人会自动隐藏；电话是唯一授权键，可一键加入私聊/本群授权。'),
+    actionableContacts.length === 0
+      ? h('div', { className: 'dim-accessUsersEmpty' },
+          contacts.length === 0
+            ? '暂无联系人。有人私聊或 @ 机器人后会出现在此。'
+            : '当前联系人均已具备对应权限，无需再授权。')
+      : h('ul', { className: 'dim-accessUserList' }, actionableContacts.slice(0, 30).map((contact) => {
           const phone = contact.phone || '';
-          const alreadyDirect = phone && draft.directMembers.some((m) => m.phone === phone);
-          const groupTargets = (contact.groupJids ?? []).filter((jid) => knownGroupJids.includes(jid));
+          const alreadyDirect = Boolean(phone)
+            && ((draft.directMembers ?? []).some((m) => m.phone === phone)
+              || (draft.globalAdmins ?? []).includes(phone));
+          const groupTargets = (contact.groupJids ?? [])
+            .filter((jid) => knownGroupJids.includes(jid))
+            .filter((groupJid) => {
+              if (!phone) return true;
+              const group = draft.groups[groupJid] ?? { admins: [], members: [] };
+              return !(group.admins ?? []).includes(phone)
+                && !(group.members ?? []).some((m) => m.phone === phone);
+            });
           return h('li', {
             key: `${contact.phone ?? ''}-${(contact.lids ?? []).join(',')}`,
             className: 'dim-accessUserRow',
@@ -632,11 +672,11 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
             h('strong', null, contactLabel(contact)),
             h('span', null, (contact.scenes ?? []).join(' / ')),
             phone ? null : h('span', null, '待补电话')),
-          phone ? h('button', {
+          phone && !alreadyDirect ? h('button', {
             type: 'button',
             className: 'dim-deliveryButton',
             'data-kind': 'primary',
-            disabled: saving || alreadyDirect,
+            disabled: saving,
             onClick: () => {
               setDraft((current) => {
                 if (current.directMembers.some((m) => m.phone === phone)) return current;
@@ -650,17 +690,15 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
               });
               setFeedback({ tone: 'success', message: '已加入私聊授权，记得点保存。' });
             },
-          }, alreadyDirect ? '已在私聊' : '加私聊') : null,
+          }, '加私聊') : null,
           ...groupTargets.map((groupJid) => {
             const group = draft.groups[groupJid] ?? { admins: [], members: [] };
             const name = groupDisplayName(groupJid, draft.groups);
-            const already = group.admins.includes(phone)
-              || group.members.some((m) => m.phone === phone);
             return h('button', {
               key: `add-${groupJid}`,
               type: 'button',
               className: 'dim-deliveryButton',
-              disabled: saving || !phone || already,
+              disabled: saving || !phone,
               onClick: () => {
                 setDraft((current) => {
                   const existing = current.groups[groupJid] ?? { title: '', admins: [], members: [] };
@@ -687,7 +725,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
                   message: ['已加入群授权：', name, '。记得点保存。'].join(''),
                 });
               },
-            }, [already ? '已在群：' : '加入群：', name].join(''));
+            }, ['加入群：', name].join(''));
           }));
         }))),
   h('fieldset', { className: 'dim-accessScene', disabled: saving },
