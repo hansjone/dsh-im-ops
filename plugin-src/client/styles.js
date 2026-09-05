@@ -459,6 +459,15 @@ const CSS = String.raw`
 .dim-accessUsersEmpty { margin-top: 10px; padding: 15px 12px; border: 1px dashed var(--dsw-alias-border-l2, #dfe1e5); border-radius: 8px; color: var(--dsw-alias-label-tertiary, #8f959e); font-size: 12px; line-height: 18px; text-align: center; }
 .dim-accessUserList { display: grid; gap: 9px; margin: 10px 0 0; padding: 0; list-style: none; }
 .dim-accessUserRow { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(145px, 180px) max-content; align-items: end; gap: 10px; padding: 11px; border: 1px solid var(--dsw-alias-border-l1, #eef0f3); border-radius: 9px; background: var(--dsw-alias-bg-module-platform, #f7f8fa); }
+.dim-accessCompactList { display: grid; gap: 0; margin: 8px 0 0; padding: 0; list-style: none; border: 1px solid var(--dsw-alias-border-l1, #eef0f3); border-radius: 8px; overflow: visible; background: var(--dsw-alias-bg-layer-1, #fff); }
+.dim-accessCompactRow { position: relative; z-index: 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0; padding: 7px 8px; border: 0; border-bottom: 1px solid var(--dsw-alias-border-l1, #eef0f3); border-radius: 0; background: transparent; }
+.dim-accessCompactRow:last-child { border-bottom: 0; }
+.dim-accessCompactRow:focus-within { z-index: 5; background: color-mix(in srgb, var(--dsw-alias-bg-module-platform, #f7f8fa) 70%, transparent); }
+.dim-accessCompactIdentity { min-width: 0; flex: 1 1 160px; display: grid; gap: 2px; }
+.dim-accessCompactIdentity .dim-accessTypeahead > input { height: 32px; font-size: 12px; }
+.dim-accessCompactSelect { flex: 0 1 132px; width: auto; min-width: 108px; max-width: 160px; height: 32px; padding: 0 6px; border: 1px solid var(--dsw-alias-border-l2, #dfe1e5); border-radius: 7px; color: var(--dsw-alias-label-primary, #1f2329); background: var(--dsw-alias-bg-layer-1, #fff); font: inherit; font-size: 12px; }
+.dim-accessCompactSelect:focus { outline: 2px solid color-mix(in srgb, var(--dsw-alias-state-business-primary, #3370ff) 28%, transparent); border-color: var(--dsw-alias-state-business-primary, #3370ff); }
+.dim-accessCompactDelete { flex: 0 0 auto; min-height: 32px; padding-inline: 10px; }
 .dim-accessDeleteUser { margin-bottom: 1px; }
 .dim-accessUnsupported { padding: 18px 14px; border: 1px dashed var(--dsw-alias-border-l2, #dfe1e5); border-radius: 9px; color: var(--dsw-alias-label-secondary, #646a73); background: var(--dsw-alias-bg-module-platform, #f7f8fa); text-align: center; }
 .dim-accessUnsupported strong { color: var(--dsw-alias-label-primary, #1f2329); font-size: 13px; line-height: 20px; }
@@ -484,7 +493,7 @@ const CSS = String.raw`
 .dim-accessGroupHeading h3 { margin: 0; color: var(--dsw-alias-label-primary, #1f2329); font-size: 14px; line-height: 21px; font-weight: 650; }
 .dim-accessGroupJid { color: var(--dsw-alias-label-tertiary, #8f959e); font-size: 11px; line-height: 16px; overflow-wrap: anywhere; }
 .dim-accessGroupTitleRow { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 10px; align-items: end; }
-.dim-accessNickname { display: block; margin-top: 4px; color: var(--dsw-alias-label-secondary, #646a73); font-size: 12px; line-height: 18px; font-weight: 560; }
+.dim-accessNickname { display: block; margin-top: 0; color: var(--dsw-alias-label-secondary, #646a73); font-size: 11px; line-height: 15px; font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dim-accessNicknameEmpty { color: var(--dsw-alias-label-tertiary, #8f959e); font-weight: 400; }
 .dim-accessUserRow { position: relative; z-index: 0; overflow: visible; }
 .dim-panel .dim-botCard .dim-cardFooter { margin-top: 0; }

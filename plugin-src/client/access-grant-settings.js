@@ -79,11 +79,11 @@ function nicknameForPhone(contacts, phone) {
   return typeof hit?.pushName === 'string' ? hit.pushName.trim() : '';
 }
 
-function NicknameHint({ contacts, phone }) {
+function NicknameHint({ contacts, phone, shortEmpty = false }) {
   const nickname = nicknameForPhone(contacts, phone);
   return h('span', {
     className: nickname ? 'dim-accessNickname' : 'dim-accessNickname dim-accessNicknameEmpty',
-  }, nickname || '暂无昵称（私聊/@ 后会自动补齐）');
+  }, nickname || (shortEmpty ? '暂无昵称' : '暂无昵称（私聊/@ 后会自动补齐）'));
 }
 
 function groupDisplayName(groupJid, groups) {
@@ -204,10 +204,13 @@ function MemberRows({
     ...(nested ? {} : { disabled }),
   },
     nested ? h('h4', { className: 'dim-accessSubblockTitle' }, title) : h('legend', null, title),
-    h('ul', { className: 'dim-accessUserList' }, members.map((member, index) =>
-      h('li', { key: `member-${index}`, className: 'dim-accessUserRow' },
-        h('label', { className: 'dim-accessField dim-accessUserId' },
-          h('span', null, '电话'),
+    h('ul', { className: 'dim-accessCompactList' }, members.map((member, index) =>
+      h('li', {
+        key: `member-${index}`,
+        className: 'dim-accessCompactRow',
+        'data-kind': 'member',
+      },
+        h('div', { className: 'dim-accessCompactIdentity' },
           h(PhoneTypeahead, {
             value: member.phone,
             contacts,
@@ -217,28 +220,32 @@ function MemberRows({
               i === index ? { ...entry, phone } : entry
             ))),
           }),
-          h(NicknameHint, { contacts, phone: member.phone })),
-        h('label', { className: 'dim-accessField dim-accessUserCommand' },
-          h('span', null, '命令权限'),
-          h('select', {
-            value: member.canExecuteCommands ? 'allow' : 'deny',
-            onChange: (event) => onChange(members.map((entry, i) => (
-              i === index
-                ? { ...entry, canExecuteCommands: event.target.value === 'allow' }
-                : entry
-            ))),
-          },
-          h('option', { value: 'allow' }, '可以执行命令'),
-          h('option', { value: 'deny' }, '不可以执行命令'))),
+          h(NicknameHint, { contacts, phone: member.phone, shortEmpty: true })),
+        h('select', {
+          className: 'dim-accessCompactSelect',
+          title: '命令权限',
+          'aria-label': '命令权限',
+          value: member.canExecuteCommands ? 'allow' : 'deny',
+          disabled,
+          onChange: (event) => onChange(members.map((entry, i) => (
+            i === index
+              ? { ...entry, canExecuteCommands: event.target.value === 'allow' }
+              : entry
+          ))),
+        },
+        h('option', { value: 'allow' }, '可执行命令'),
+        h('option', { value: 'deny' }, '不可执行命令')),
         h('button', {
           type: 'button',
-          className: 'dim-deliveryButton',
+          className: 'dim-deliveryButton dim-accessCompactDelete',
           'data-kind': 'danger',
+          disabled,
           onClick: () => onChange(members.filter((_, i) => i !== index)),
         }, '删除')))),
     h('button', {
       type: 'button',
       className: 'dim-deliveryButton',
+      disabled,
       onClick: () => onChange([...members, { phone: '', canExecuteCommands: true }]),
     }, '新增用户'));
 }
@@ -259,11 +266,15 @@ function AdminPhones({
   },
     nested ? h('h4', { className: 'dim-accessSubblockTitle' }, title) : h('legend', null, title),
     help ? h('p', { className: 'dim-accessHint' }, help) : null,
-    h('ul', { className: 'dim-accessUserList' }, phones.map((phone, index) => {
+    h('ul', { className: 'dim-accessCompactList' }, phones.map((phone, index) => {
       const locked = lockedPhone && phone === lockedPhone;
-      return h('li', { key: `admin-${index}`, className: 'dim-accessUserRow' },
-        h('label', { className: 'dim-accessField dim-accessUserId' },
-          h('span', null, locked ? '绑定账号（全局管理员）' : '电话'),
+      return h('li', {
+        key: `admin-${index}`,
+        className: 'dim-accessCompactRow',
+        'data-kind': 'admin',
+        ...(locked ? { 'data-locked': 'true' } : {}),
+      },
+        h('div', { className: 'dim-accessCompactIdentity' },
           h(PhoneTypeahead, {
             value: phone,
             contacts,
@@ -271,17 +282,21 @@ function AdminPhones({
             placeholder: '8613800000000',
             onChange: (next) => onChange(phones.map((entry, i) => (i === index ? next : entry))),
           }),
-          locked ? null : h(NicknameHint, { contacts, phone })),
+          locked
+            ? h('span', { className: 'dim-accessNickname' }, '绑定账号（全局管理员）')
+            : h(NicknameHint, { contacts, phone, shortEmpty: true })),
         locked ? null : h('button', {
           type: 'button',
-          className: 'dim-deliveryButton',
+          className: 'dim-deliveryButton dim-accessCompactDelete',
           'data-kind': 'danger',
+          disabled,
           onClick: () => onChange(phones.filter((_, i) => i !== index)),
         }, '删除'));
     })),
     h('button', {
       type: 'button',
       className: 'dim-deliveryButton',
+      disabled,
       onClick: () => onChange([...phones, '']),
     }, '新增管理员'));
 }
