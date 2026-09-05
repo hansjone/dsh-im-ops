@@ -1,7 +1,7 @@
 {
-  "name": "@xmanrui/dsh-im",
-  "version": "4.9.1",
-  "description": "把九种 IM 机器人和公网 AI Office 接入本机 DeepSeek Harness。 Connect nine IM channels and a public AI Office to a local DeepSeek Harness.",
+  "name": "dsh-im-ops",
+  "version": "4.9.1-ops.0",
+  "description": "Ops fork of dsh-im (all channels kept). Based on @xmanrui/dsh-im@4.9.1 — access/session policies owned here.",
   "keywords": [
     "deepseek-harness",
     "dsh",
@@ -20,7 +20,9 @@
     "telegram",
     "discord",
     "whatsapp",
-    "ai-office"
+    "ai-office",
+    "ops",
+    "fork"
   ],
   "author": "xmanrui (https://github.com/xmanrui)",
   "contributors": [
@@ -41,14 +43,11 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/xmanrui/dsh-im.git"
+    "url": "git+https://github.com/hansjone/dsh-im-ops.git"
   },
-  "homepage": "https://github.com/xmanrui/dsh-im#readme",
+  "homepage": "https://github.com/hansjone/dsh-im-ops#readme",
   "bugs": {
-    "url": "https://github.com/xmanrui/dsh-im/issues"
-  },
-  "publishConfig": {
-    "access": "public"
+    "url": "https://github.com/hansjone/dsh-im-ops/issues"
   },
   "bin": {
     "dsh-im": "bin/dsh-im.mjs"

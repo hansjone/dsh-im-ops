@@ -11,7 +11,7 @@ export function installTelegramStyles() {
   const existing = document.querySelector(`style[data-plugin-css="${TELEGRAM_STYLE_ID}"]`);
   if (existing) return () => {};
   const style = document.createElement('style');
-  style.dataset.plugin = '@xmanrui/dsh-im';
+  style.dataset.plugin = 'dsh-im-ops';
   style.dataset.pluginCss = TELEGRAM_STYLE_ID;
   style.textContent = CSS;
   document.head.appendChild(style);

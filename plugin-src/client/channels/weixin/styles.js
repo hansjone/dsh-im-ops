@@ -107,7 +107,7 @@ export function installWeixinStyles() {
   const existing = document.querySelector(`style[data-plugin-css="${WEIXIN_STYLE_ID}"]`);
   if (existing) return () => {};
   const style = document.createElement('style');
-  style.dataset.plugin = '@xmanrui/dsh-im';
+  style.dataset.plugin = 'dsh-im-ops';
   style.dataset.pluginCss = WEIXIN_STYLE_ID;
   style.textContent = CSS;
   document.head.appendChild(style);

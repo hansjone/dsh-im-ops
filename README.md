@@ -1,4 +1,4 @@
-<p align="center">
+> **Fork:** dsh-im-ops — ops-owned fork of [@xmanrui/dsh-im@4.9.1](https://github.com/xmanrui/dsh-im). See [FORK.md](FORK.md). Do not install alongside the community package.\n\n<p align="center">
   <img src="assets/logo-dsh-im-connecting-readme-3x2.png" alt="DSH-IM — Connecting DeepSeek Harness" width="420" height="280" align="middle">&nbsp;&nbsp;
   <img src="assets/logo-plugin-phone.png" alt="DSH-IM phone logo" width="280" height="280" align="middle">
 </p>
