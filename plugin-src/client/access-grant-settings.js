@@ -129,7 +129,7 @@ function MemberRows({
   return h('fieldset', { className: 'dim-accessScene', disabled },
     h('legend', null, title),
     h('ul', { className: 'dim-accessUserList' }, members.map((member, index) =>
-      h('li', { key: `${member.phone}-${index}`, className: 'dim-accessUserRow' },
+      h('li', { key: `member-${index}`, className: 'dim-accessUserRow' },
         h('label', { className: 'dim-accessField dim-accessUserId' },
           h('span', null, '电话'),
           h(PhoneTypeahead, {
@@ -180,7 +180,7 @@ function AdminPhones({
     help ? h('p', { className: 'dim-accessUsersEmpty' }, help) : null,
     h('ul', { className: 'dim-accessUserList' }, phones.map((phone, index) => {
       const locked = lockedPhone && phone === lockedPhone;
-      return h('li', { key: `${phone}-${index}`, className: 'dim-accessUserRow' },
+      return h('li', { key: `admin-${index}`, className: 'dim-accessUserRow' },
         h('label', { className: 'dim-accessField dim-accessUserId' },
           h('span', null, locked ? '绑定账号（全局管理员）' : '电话'),
           h(PhoneTypeahead, {
@@ -214,6 +214,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
   }
   const ownerPhone = ownerPhoneFromAccount(account);
   const initialGrant = normalizeAccessGrant(account?.accessGrant);
+  const initialKey = JSON.stringify(initialGrant);
   const initialScope = normalizeGroupSessionScope(account?.groupSessionScope);
   const [draft, setDraft] = React.useState(() => cloneGrant(initialGrant, ownerPhone));
   const [groupSessionScope, setGroupSessionScope] = React.useState(initialScope);
@@ -224,7 +225,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
   React.useEffect(() => {
     setDraft(cloneGrant(normalizeAccessGrant(account?.accessGrant), ownerPhone));
     setGroupSessionScope(normalizeGroupSessionScope(account?.groupSessionScope));
-  }, [account?.botId, account?.accessGrant, account?.groupSessionScope, ownerPhone]);
+  }, [account?.botId, initialKey, account?.groupSessionScope, ownerPhone]);
 
   const contacts = draft.contacts ?? [];
   const knownGroupJids = React.useMemo(() => {
