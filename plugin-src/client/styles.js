@@ -484,13 +484,13 @@ body[data-ds-dark-theme] .dim-page select option, body[data-ds-dark-theme] .dim-
 .dim-accessTable[data-kind="member"] th:nth-child(2), .dim-accessTable[data-kind="member"] td:nth-child(2) { width: 36%; }
 .dim-accessTable[data-kind="member"] th:nth-child(3), .dim-accessTable[data-kind="member"] td:nth-child(3) { width: 28%; }
 .dim-accessTable[data-kind="member"] th:nth-child(4), .dim-accessTable[data-kind="member"] td:nth-child(4) { width: 16%; }
-.dim-accessTable[data-kind="contact"] th:nth-child(1), .dim-accessTable[data-kind="contact"] td:nth-child(1) { width: 18%; }
-.dim-accessTable[data-kind="contact"] th:nth-child(2), .dim-accessTable[data-kind="contact"] td:nth-child(2) { width: 26%; }
-.dim-accessTable[data-kind="contact"] th:nth-child(3), .dim-accessTable[data-kind="contact"] td:nth-child(3) { width: 18%; }
-.dim-accessTable[data-kind="contact"] th:nth-child(4), .dim-accessTable[data-kind="contact"] td:nth-child(4) { width: 38%; }
+.dim-accessTable[data-kind="contact"] th:nth-child(1), .dim-accessTable[data-kind="contact"] td:nth-child(1) { width: 16%; }
+.dim-accessTable[data-kind="contact"] th:nth-child(2), .dim-accessTable[data-kind="contact"] td:nth-child(2) { width: 24%; }
+.dim-accessTable[data-kind="contact"] th:nth-child(3), .dim-accessTable[data-kind="contact"] td:nth-child(3) { width: 14%; }
+.dim-accessTable[data-kind="contact"] th:nth-child(4), .dim-accessTable[data-kind="contact"] td:nth-child(4) { width: 46%; }
 .dim-accessTableSource { min-width: 0; color: var(--dsw-alias-label-secondary, #646a73); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dim-accessContactActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-.dim-accessContactActions .dim-deliveryButton { min-height: 30px; padding-inline: 10px; }
+.dim-accessContactActions { display: inline-flex; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: 6px; width: 100%; white-space: nowrap; }
+.dim-accessContactActions .dim-deliveryButton { flex: 0 0 auto; min-height: 28px; padding: 3px 8px; white-space: nowrap; }
 .dim-accessTableNick { min-width: 0; }
 .dim-accessTableNick .dim-accessNickname { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dim-accessTablePhone { min-width: 0; position: relative; z-index: 0; }
