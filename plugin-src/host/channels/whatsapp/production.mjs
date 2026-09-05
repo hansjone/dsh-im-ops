@@ -123,6 +123,8 @@ export async function createProductionController(ctx, config = {}, internals = {
           channel: 'whatsapp', config: botConfig, equals: whatsappAccessPolicyIdsEqual,
         }),
         groupSessionScope: { getScope: () => workspaces.groupSessionScopeFor(botId) },
+        workspaces,
+        botId,
         replyTimeoutMs: config.replyTimeoutMs ?? 600_000,
         connectTimeoutMs: config.connectTimeoutMs ?? 30_000,
         createSession,

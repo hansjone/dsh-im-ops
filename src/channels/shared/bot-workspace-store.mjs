@@ -22,6 +22,12 @@ import {
   normalizeGroupSessionScope,
   validateGroupSessionScope,
 } from './session-scope.mjs';
+import {
+  emptyAccessGrant,
+  normalizeAccessGrant,
+  resolveAccessPending,
+  validateAccessGrant,
+} from './access-grant.mjs';
 import { CONNECTION_TEST_STATE_IDENTITY } from './connection-test.mjs';
 import {
   DEFAULT_CONTEXT_ENHANCEMENT_CONFIG,
@@ -211,7 +217,17 @@ function normalizeDocument(value) {
   const deliveryTargets = normalizeDeliveryTargets(value.deliveryTargets);
   if (!deliveryTargets) return null;
   const accessPolicies = normalizeAccessPolicies(value.accessPolicies, workspaces);
-  const version = value.accessPolicies === undefined ? value.version : 2;
+  const accessGrants = Object.create(null);
+  if (value.accessGrants && typeof value.accessGrants === 'object'
+    && !Array.isArray(value.accessGrants)) {
+    for (const [botId, grant] of Object.entries(value.accessGrants)) {
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(botId)) continue;
+      const normalized = normalizeAccessGrant(grant);
+      if (normalized) accessGrants[botId] = normalized;
+    }
+  }
+  const version = value.accessPolicies === undefined && value.accessGrants === undefined
+    ? value.version : 2;
   return {
     // A v1 file cannot be emitted with this optional v2 section. If one is
     // recovered from an interrupted/manual edit, retain it on the next write.
@@ -222,6 +238,7 @@ function normalizeDocument(value) {
     contextEnhancement,
     deliveryTargets,
     accessPolicies,
+    accessGrants,
   };
 }
 
@@ -233,6 +250,7 @@ function storedDocument({
   contextEnhancement,
   deliveryTargets,
   accessPolicies,
+  accessGrants,
 }) {
   const document = { version, workspaces };
   if (Object.keys(agentPresets).length > 0) document.agentPresets = agentPresets;
@@ -245,6 +263,9 @@ function storedDocument({
   }
   if (version >= 2 && Object.keys(accessPolicies).length > 0) {
     document.accessPolicies = accessPolicies;
+  }
+  if (version >= 2 && Object.keys(accessGrants).length > 0) {
+    document.accessGrants = accessGrants;
   }
   return document;
 }
@@ -292,6 +313,7 @@ export class BotWorkspaceStore {
   #contextEnhancement = {};
   #deliveryTargets = Object.create(null);
   #accessPolicies = Object.create(null);
+  #accessGrants = Object.create(null);
   #generations = new Map();
   #nextGeneration = 1;
   #incarnations = new Map();
@@ -319,6 +341,7 @@ export class BotWorkspaceStore {
       this.#contextEnhancement = normalized.contextEnhancement;
       this.#deliveryTargets = normalized.deliveryTargets;
       this.#accessPolicies = normalized.accessPolicies;
+      this.#accessGrants = normalized.accessGrants;
     } catch (error) {
       if (error?.code !== 'ENOENT') throw error;
       this.#version = 1;
@@ -328,6 +351,7 @@ export class BotWorkspaceStore {
       this.#contextEnhancement = {};
       this.#deliveryTargets = Object.create(null);
       this.#accessPolicies = Object.create(null);
+      this.#accessGrants = Object.create(null);
     }
     this.#generations.clear();
     this.#nextGeneration = 1;
@@ -379,6 +403,14 @@ export class BotWorkspaceStore {
     return this.has(id) && Object.hasOwn(this.#accessPolicies, id)
       ? this.#accessPolicies[id]
       : null;
+  }
+
+  accessGrantFor(botId) {
+    const id = botIdOf(botId);
+    if (this.has(id) && Object.hasOwn(this.#accessGrants, id)) {
+      return this.#accessGrants[id];
+    }
+    return null;
   }
 
   listDeliveryTargets(botId) {
@@ -671,6 +703,35 @@ export class BotWorkspaceStore {
     });
   }
 
+  async setAccessGrant(botId, value, { incarnation } = {}) {
+    const id = botIdOf(botId);
+    if (!this.has(id)
+      || (incarnation !== undefined && incarnation !== this.incarnationFor(id))) {
+      const error = new Error('找不到要修改的机器人。');
+      error.code = 'workspace-bot-not-found';
+      throw error;
+    }
+    const grant = validateAccessGrant(value);
+    return this.#enqueue(id, async () => {
+      if (!this.has(id)
+        || (incarnation !== undefined && incarnation !== this.incarnationFor(id))) {
+        const error = new Error('找不到要修改的机器人。');
+        error.code = 'workspace-bot-not-found';
+        throw error;
+      }
+      const previous = this.#accessGrants[id] ?? null;
+      this.#accessGrants[id] = grant;
+      try {
+        await this.#persist();
+      } catch (error) {
+        if (previous) this.#accessGrants[id] = previous;
+        else delete this.#accessGrants[id];
+        throw error;
+      }
+      return grant;
+    });
+  }
+
   async bindWorkspaceSession(botId, value, {
     conversationKey,
     sessionId,
@@ -832,6 +893,7 @@ export class BotWorkspaceStore {
       ...Object.keys(this.#contextEnhancement),
       ...Object.keys(this.#deliveryTargets),
       ...Object.keys(this.#accessPolicies),
+      ...Object.keys(this.#accessGrants),
       ...this.#dirtyRemovals,
     ]);
     for (const botId of candidates) {
@@ -851,6 +913,7 @@ export class BotWorkspaceStore {
           groupSessionScope: this.groupSessionScopeFor(bot.botId),
           contextEnhancement: this.contextEnhancementFor(bot.botId),
           accessPolicy: this.accessPolicyFor(bot.botId),
+          accessGrant: this.accessGrantFor(bot.botId),
         }
         : bot),
     };
@@ -884,14 +947,16 @@ export class BotWorkspaceStore {
     const hadContextEnhancement = Object.hasOwn(this.#contextEnhancement, id);
     const hadDeliveryTargets = Object.hasOwn(this.#deliveryTargets, id);
     const hadAccessPolicy = Object.hasOwn(this.#accessPolicies, id);
+    const hadAccessGrant = Object.hasOwn(this.#accessGrants, id);
     const needsCleanup = hadWorkspace || hadPreset || hadGroupSessionScope || hadContextEnhancement
-      || hadDeliveryTargets || hadAccessPolicy || this.#dirtyRemovals.has(id);
+      || hadDeliveryTargets || hadAccessPolicy || hadAccessGrant || this.#dirtyRemovals.has(id);
     delete this.#workspaces[id];
     delete this.#agentPresets[id];
     delete this.#groupSessionScopes[id];
     delete this.#contextEnhancement[id];
     delete this.#deliveryTargets[id];
     delete this.#accessPolicies[id];
+    delete this.#accessGrants[id];
     this.#generations.delete(id);
     this.#incarnations.delete(id);
     if (!needsCleanup) return {
@@ -935,6 +1000,7 @@ export class BotWorkspaceStore {
       contextEnhancement,
       deliveryTargets,
       accessPolicies,
+      accessGrants: this.#accessGrants,
     }));
     this.#dirtyRemovals.clear();
   }
@@ -945,7 +1011,8 @@ export class BotWorkspaceStore {
       || Object.keys(this.#groupSessionScopes).length > 0
       || Object.keys(this.#contextEnhancement).length > 0
       || Object.keys(this.#deliveryTargets).length > 0
-      || Object.keys(this.#accessPolicies).length > 0) {
+      || Object.keys(this.#accessPolicies).length > 0
+      || Object.keys(this.#accessGrants).length > 0) {
       await this.#persist();
       return;
     }
@@ -1521,6 +1588,54 @@ export function createWorkspaceAwareController(controller, { workspaces, stateFo
       return result;
     });
   };
+  const updateAccessGrant = (botId, value, projectStatus) => {
+    const incarnation = workspaces.incarnationFor(botId);
+    const grant = validateAccessGrant(value);
+    return withBotTransition(botId, async () => {
+      const snapshot = await controller.status();
+      if (!snapshot?.bots?.some((bot) => bot?.botId === botId)) {
+        const error = new Error('找不到要修改的机器人。');
+        error.code = 'workspace-bot-not-found';
+        throw error;
+      }
+      const catalog = await resolveAgentPresetCatalog(agentPresetCatalog);
+      const decorated = workspaces.decorateStatus(snapshot);
+      const updated = {
+        ...decorated,
+        bots: decorated.bots.map((bot) => bot?.botId === botId
+          ? { ...bot, accessGrant: grant } : bot),
+        ...(catalog ? { agentPresetCatalog: catalog } : {}),
+      };
+      const result = projectStatus ? await projectStatus(updated) : updated;
+      await workspaces.setAccessGrant(botId, grant, { incarnation });
+      return result;
+    });
+  };
+  const resolveAccessPendingProxy = (botId, payload, projectStatus) => {
+    const incarnation = workspaces.incarnationFor(botId);
+    return withBotTransition(botId, async () => {
+      const current = workspaces.accessGrantFor(botId) ?? emptyAccessGrant();
+      const { grant, pending } = resolveAccessPending(current, payload);
+      const snapshot = await controller.status();
+      if (!snapshot?.bots?.some((bot) => bot?.botId === botId)) {
+        const error = new Error('找不到要修改的机器人。');
+        error.code = 'workspace-bot-not-found';
+        throw error;
+      }
+      const catalog = await resolveAgentPresetCatalog(agentPresetCatalog);
+      const decorated = workspaces.decorateStatus(snapshot);
+      const updated = {
+        ...decorated,
+        bots: decorated.bots.map((bot) => bot?.botId === botId
+          ? { ...bot, accessGrant: grant } : bot),
+        ...(catalog ? { agentPresetCatalog: catalog } : {}),
+        resolvedPending: pending,
+      };
+      const result = projectStatus ? await projectStatus(updated) : updated;
+      await workspaces.setAccessGrant(botId, grant, { incarnation });
+      return result;
+    });
+  };
   const deleteWithWorkspace = (botId, invokeDelete) => withBotTransition(botId, async () => {
     // Fence the old runtime without changing the durable mapping. A crash
     // before the controller removes its config therefore keeps the bot's
@@ -1563,6 +1678,8 @@ export function createWorkspaceAwareController(controller, { workspaces, stateFo
       if (property === 'updateContextEnhancement') return updateContextEnhancement;
       if (property === 'updateAccessPolicy') return updateAccessPolicy;
       if (property === 'updateGroupSessionScope') return updateGroupSessionScope;
+      if (property === 'updateAccessGrant') return updateAccessGrant;
+      if (property === 'resolveAccessPending') return resolveAccessPendingProxy;
       const value = Reflect.get(target, property, target);
       if (typeof value !== 'function') return value;
       if (property === 'deleteBot') {

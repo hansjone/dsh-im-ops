@@ -468,6 +468,12 @@ const CSS = String.raw`
 .dim-accessFeedback[data-tone="success"] { color: var(--dsw-alias-state-success-primary, #20a162); }
 .dim-accessFeedback[data-tone="error"] { color: var(--dsw-alias-state-error-primary, #d54941); }
 .dim-accessActions { display: flex; justify-content: flex-end; }
+.dim-accessTypeahead { position: relative; min-width: 0; display: grid; gap: 6px; }
+.dim-accessTypeahead > input { width: 100%; min-width: 0; height: 36px; padding: 0 9px; border: 1px solid var(--dsw-alias-border-l2, #dfe1e5); border-radius: 7px; color: var(--dsw-alias-label-primary, #1f2329); background: var(--dsw-alias-bg-layer-1, #fff); font: inherit; font-size: 12px; }
+.dim-accessTypeahead > input:focus { outline: 2px solid color-mix(in srgb, var(--dsw-alias-state-business-primary, #3370ff) 28%, transparent); border-color: var(--dsw-alias-state-business-primary, #3370ff); }
+.dim-accessSuggestList { position: absolute; z-index: 4; top: calc(100% + 4px); left: 0; right: 0; margin: 0; padding: 6px; list-style: none; display: grid; gap: 4px; max-height: 220px; overflow: auto; border: 1px solid var(--dsw-alias-border-l2, #dfe1e5); border-radius: 9px; background: var(--dsw-alias-bg-layer-1, #fff); box-shadow: 0 8px 24px color-mix(in srgb, #1f2329 12%, transparent); }
+.dim-accessSuggestList li { min-width: 0; }
+.dim-accessSuggestList .dim-deliveryButton { width: 100%; justify-content: flex-start; text-align: left; white-space: normal; }
 .dim-panel .dim-botCard .dim-cardFooter { margin-top: 0; }
 .dim-panel .ddt-headingCopy { display: none; }
 .dim-panel .ddt-qrFrame, .dim-panel .ddt-countdown { width: min(270px, 100%); }

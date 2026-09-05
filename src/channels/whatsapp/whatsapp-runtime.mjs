@@ -14,6 +14,11 @@ import { trackOutboundArtifactProviderPromise } from '../shared/semantic/artifac
 import { createWhatsappBridgeStatus, WhatsappHarnessBridge } from './whatsapp-bridge.mjs';
 import { enrichWhatsappInboundIdentities } from './whatsapp-identity.mjs';
 import {
+  gateWhatsappInbound,
+  loadWhatsappAccessGrant,
+  tryHandleWhatsappApprovalReply,
+} from './whatsapp-access-gate.mjs';
+import {
   WHATSAPP_ACCESS_MODES,
 } from './config-store.mjs';
 import { createWhatsappWebSession } from './whatsapp-web-session.mjs';
@@ -627,6 +632,8 @@ export class WhatsappRuntime {
   #contextEnhancement;
   #accessPolicy;
   #groupSessionScope;
+  #workspaces;
+  #botId;
   #logger;
   #replyTimeoutMs;
   #connectTimeoutMs;
@@ -648,6 +655,8 @@ export class WhatsappRuntime {
     contextEnhancement,
     accessPolicy,
     groupSessionScope,
+    workspaces,
+    botId,
     logger = console,
     replyTimeoutMs = 600_000,
     connectTimeoutMs = 30_000,
@@ -664,6 +673,8 @@ export class WhatsappRuntime {
     this.#contextEnhancement = contextEnhancement;
     this.#accessPolicy = accessPolicy;
     this.#groupSessionScope = groupSessionScope;
+    this.#workspaces = workspaces;
+    this.#botId = botId;
     this.#logger = logger;
     this.#replyTimeoutMs = replyTimeoutMs;
     this.#connectTimeoutMs = connectTimeoutMs;
@@ -724,6 +735,44 @@ export class WhatsappRuntime {
           });
           if (!message || outboundIds.has(message.providerMessageId) || !this.#bridge) return;
           this.#status.lastCheckedAt = Date.now();
+          if (this.#workspaces && this.#botId) {
+            const sendText = (target, text) => this.#client.sendText(target, text);
+            let grant = await loadWhatsappAccessGrant({
+              workspaces: this.#workspaces,
+              botId: this.#botId,
+              accountJid: this.#config.accountJid,
+              accessPolicy: this.#accessPolicy?.getSettings?.() ?? null,
+            });
+            const handled = await tryHandleWhatsappApprovalReply({
+              workspaces: this.#workspaces,
+              botId: this.#botId,
+              grant,
+              message,
+              raw,
+              sendText,
+              accountJid: this.#config.accountJid,
+            });
+            if (handled) return;
+            grant = this.#workspaces.accessGrantFor(this.#botId) ?? grant;
+            const gated = await gateWhatsappInbound({
+              workspaces: this.#workspaces,
+              botId: this.#botId,
+              grant,
+              message,
+              sendText,
+              accountJid: this.#config.accountJid,
+            });
+            if (!gated.allowed) {
+              if (gated.accessDecision) {
+                await this.#bridge.accept(message, { accessDecision: gated.accessDecision });
+              } else if (!this.#state.hasSeen(message.messageId)) {
+                await this.#state.markSeen(message.messageId);
+              }
+              return;
+            }
+            await this.#bridge.accept(message, { accessDecision: gated.accessDecision });
+            return;
+          }
           await this.#bridge.accept(message);
         },
         onDisconnect: ({ error }) => {

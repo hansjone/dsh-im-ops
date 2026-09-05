@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import { AccessPolicySettingsPage } from './access-policy-settings.js';
+import { AccessGrantSettingsPage } from './access-grant-settings.js';
 import { h, isEnglish, localizeText } from './i18n.js';
 
 export const DELIVERY_RPC_CHANNEL = '/dsh-im-delivery';
@@ -557,11 +558,13 @@ export function DeliveryTargetSettingsPage({
   const [saving, setSaving] = React.useState(false);
   const [botCopyState, setBotCopyState] = React.useState(null);
   const [accessPolicy, setAccessPolicy] = React.useState(account.accessPolicy);
+  const [accessGrant, setAccessGrant] = React.useState(account.accessGrant);
   const mounted = React.useRef(true);
 
   React.useEffect(() => {
     setAccessPolicy(account.accessPolicy);
-  }, [account.botId, account.accessPolicy]);
+    setAccessGrant(account.accessGrant);
+  }, [account.botId, account.accessPolicy, account.accessGrant]);
 
   const invoke = React.useCallback(async (endpoint, payload = {}, signal) => {
     if (typeof rpcCall !== 'function') throw new Error('投递目标设置暂不可用。');
@@ -706,12 +709,23 @@ export function DeliveryTargetSettingsPage({
     'aria-labelledby': activeTabDomId,
   },
   activeTab.id === 'access'
-    ? h(AccessPolicySettingsPage, {
-        channel,
-        account: { ...account, accessPolicy },
-        rpcCall: accessRpcCall,
-        onSaved: setAccessPolicy,
-      })
+    ? (channel === 'whatsapp'
+      ? h(AccessGrantSettingsPage, {
+          channel,
+          account: {
+            ...account,
+            accessGrant,
+            groupSessionScope: account.groupSessionScope,
+          },
+          rpcCall: accessRpcCall,
+          onSaved: setAccessGrant,
+        })
+      : h(AccessPolicySettingsPage, {
+          channel,
+          account: { ...account, accessPolicy },
+          rpcCall: accessRpcCall,
+          onSaved: setAccessPolicy,
+        }))
     : h(React.Fragment, null,
   h('section', { className: 'dim-deliveryIdentity', 'aria-labelledby': 'dim-delivery-bot-title' },
     h('div', { className: 'dim-deliveryIdentityHeading' },

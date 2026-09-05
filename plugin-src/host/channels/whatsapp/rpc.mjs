@@ -2,6 +2,12 @@ import QRCode from 'qrcode';
 
 import { publicConnectionTestResult } from '../../../../src/channels/shared/connection-test.mjs';
 import { SET_ACCESS_POLICY_ENDPOINT, validAccessPolicyPayload } from '../shared/access-policy-rpc.mjs';
+import {
+  RESOLVE_ACCESS_PENDING_ENDPOINT,
+  SET_ACCESS_GRANT_ENDPOINT,
+  validAccessGrantPayload,
+  validAccessPendingResolvePayload,
+} from '../shared/access-grant-rpc.mjs';
 import { SET_GROUP_SESSION_SCOPE_ENDPOINT, validGroupSessionScopePayload } from '../shared/group-session-scope-rpc.mjs';
 import { SET_CONTEXT_ENHANCEMENT_ENDPOINT, validContextEnhancementPayload } from '../shared/context-enhancement-rpc.mjs';
 import { resolveRpcAuthority } from '../../rpc-authority.mjs';
@@ -17,6 +23,8 @@ export const WHATSAPP_ENDPOINTS = Object.freeze({
   reconnectBot: 'bot.reconnect',
   deleteBot: 'bot.delete',
   setAccessPolicy: SET_ACCESS_POLICY_ENDPOINT,
+  setAccessGrant: SET_ACCESS_GRANT_ENDPOINT,
+  resolveAccessPending: RESOLVE_ACCESS_PENDING_ENDPOINT,
   setGroupSessionScope: SET_GROUP_SESSION_SCOPE_ENDPOINT,
   setWorkspace: SET_WORKSPACE_ENDPOINT,
   setAgentPreset: SET_AGENT_PRESET_ENDPOINT,
@@ -59,6 +67,14 @@ function payloadFailure(endpoint, payload) {
   if (endpoint === WHATSAPP_ENDPOINTS.setAccessPolicy) {
     return validAccessPolicyPayload(payload)
       ? null : '请提交有效的访问设置。';
+  }
+  if (endpoint === WHATSAPP_ENDPOINTS.setAccessGrant) {
+    return validAccessGrantPayload(payload)
+      ? null : '请提交有效的分级访问授权。';
+  }
+  if (endpoint === WHATSAPP_ENDPOINTS.resolveAccessPending) {
+    return validAccessPendingResolvePayload(payload)
+      ? null : '请提交有效的审批请求。';
   }
   if (endpoint === WHATSAPP_ENDPOINTS.setGroupSessionScope) {
     return validGroupSessionScopePayload(payload)
@@ -194,6 +210,24 @@ export function createWhatsappRpcHandler(controller, { encodeQr = qrDataUrl } = 
         value = await controller.updateAccessPolicy(
           payload.botId,
           payload.policy,
+          (status) => publicStatus(status, cachedEncode),
+        );
+      } else if (endpoint === WHATSAPP_ENDPOINTS.setAccessGrant) {
+        if (typeof controller.updateAccessGrant !== 'function') throw new Error('Access grant update is unavailable');
+        value = await controller.updateAccessGrant(
+          payload.botId,
+          payload.grant,
+          (status) => publicStatus(status, cachedEncode),
+        );
+      } else if (endpoint === WHATSAPP_ENDPOINTS.resolveAccessPending) {
+        if (typeof controller.resolveAccessPending !== 'function') throw new Error('Access pending resolve is unavailable');
+        value = await controller.resolveAccessPending(
+          payload.botId,
+          {
+            pendingId: payload.pendingId,
+            action: payload.action,
+            resolvedByPhone: payload.resolvedByPhone,
+          },
           (status) => publicStatus(status, cachedEncode),
         );
       } else if (endpoint === WHATSAPP_ENDPOINTS.setGroupSessionScope) {
