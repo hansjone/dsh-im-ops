@@ -1288,9 +1288,12 @@ export function createBotWorkspaceScope(
             throw error;
           }
           const generation = workspaces.generationFor(botId);
-          const agentPreset = workspaces.agentPresetFor(botId);
+          const { agentPreset: requestedPreset, ...createOptions } = options ?? {};
+          const agentPreset = requestedPreset !== undefined
+            ? requestedPreset
+            : workspaces.agentPresetFor(botId);
           const sessionId = await target.createSession({
-            ...options,
+            ...createOptions,
             workspace: workspaces.workspaceFor(botId),
             ...(agentPreset == null ? {} : { agentPreset }),
           });

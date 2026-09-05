@@ -484,6 +484,12 @@ body[data-ds-dark-theme] .dim-page select option, body[data-ds-dark-theme] .dim-
 .dim-accessTable[data-kind="member"] th:nth-child(2), .dim-accessTable[data-kind="member"] td:nth-child(2) { width: 36%; }
 .dim-accessTable[data-kind="member"] th:nth-child(3), .dim-accessTable[data-kind="member"] td:nth-child(3) { width: 28%; }
 .dim-accessTable[data-kind="member"] th:nth-child(4), .dim-accessTable[data-kind="member"] td:nth-child(4) { width: 16%; }
+.dim-accessTable[data-kind="member-preset"] th:nth-child(1), .dim-accessTable[data-kind="member-preset"] td:nth-child(1) { width: 16%; }
+.dim-accessTable[data-kind="member-preset"] th:nth-child(2), .dim-accessTable[data-kind="member-preset"] td:nth-child(2) { width: 26%; }
+.dim-accessTable[data-kind="member-preset"] th:nth-child(3), .dim-accessTable[data-kind="member-preset"] td:nth-child(3) { width: 18%; }
+.dim-accessTable[data-kind="member-preset"] th:nth-child(4), .dim-accessTable[data-kind="member-preset"] td:nth-child(4) { width: 26%; }
+.dim-accessTable[data-kind="member-preset"] th:nth-child(5), .dim-accessTable[data-kind="member-preset"] td:nth-child(5) { width: 14%; }
+.dim-accessTablePreset { min-width: 0; }
 .dim-accessTable[data-kind="contact"] th:nth-child(1), .dim-accessTable[data-kind="contact"] td:nth-child(1) { width: 18%; }
 .dim-accessTable[data-kind="contact"] th:nth-child(2), .dim-accessTable[data-kind="contact"] td:nth-child(2) { width: 26%; }
 .dim-accessTable[data-kind="contact"] th:nth-child(3), .dim-accessTable[data-kind="contact"] td:nth-child(3) { width: 16%; }

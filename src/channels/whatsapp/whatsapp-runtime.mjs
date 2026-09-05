@@ -7,7 +7,7 @@ import {
   normalizeMessageContent,
 } from '@whiskeysockets/baileys';
 
-import { emptyAccessGrant, ensureGroupBucket } from '../shared/access-grant.mjs';
+import { emptyAccessGrant, ensureGroupBucket, normalizeAccessPhone, phoneFromWhatsappJid, resolveAccessAgentPreset } from '../shared/access-grant.mjs';
 import { splitMessageText } from '../shared/editable-message-stream.mjs';
 import { t } from '../shared/i18n.mjs';
 import { ImagePromptError } from '../shared/image-prompt.mjs';
@@ -823,6 +823,20 @@ export class WhatsappRuntime {
         logger: this.#logger,
         replyTimeoutMs: this.#replyTimeoutMs,
         signal: controller.signal,
+        resolveAgentPreset: (message) => {
+          if (!this.#workspaces || !this.#botId) return null;
+          const grant = this.#workspaces.accessGrantFor(this.#botId);
+          return resolveAccessAgentPreset(grant, {
+            kind: message?.kind === 'group' ? 'group' : 'direct',
+            groupJid: message?.conversationId,
+            conversationId: message?.conversationId,
+            phone: phoneFromWhatsappJid(message?.senderId)
+              ?? normalizeAccessPhone(message?.senderId)
+              ?? phoneFromWhatsappJid(message?.senderAlternateId)
+              ?? normalizeAccessPhone(message?.senderAlternateId),
+            senderId: message?.senderId,
+          });
+        },
       });
       const now = Date.now();
       this.#status.ready = true;

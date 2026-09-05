@@ -10,6 +10,11 @@ import {
   normalizeGroupSessionScope,
   validateGroupSessionScope,
 } from '../../src/channels/shared/session-scope.mjs';
+import {
+  AgentPresetCatalogContext,
+  EMPTY_AGENT_PRESET_CATALOG,
+  normalizeAgentPresetCatalog,
+} from './agent-preset.js';
 import { h, localizeText } from './i18n.js';
 
 export const ACCESS_GRANT_ENDPOINT = 'bot.access-grant.set';
@@ -58,6 +63,7 @@ function cloneGrant(grant, ownerPhone) {
     directMembers: (base.directMembers ?? []).map((m) => ({ ...m })),
     groups: Object.fromEntries(Object.entries(base.groups ?? {}).map(([jid, group]) => [jid, {
       title: group.title ?? '',
+      ...(group.agentPreset ? { agentPreset: group.agentPreset } : {}),
       admins: [...(group.admins ?? [])],
       members: (group.members ?? []).map((m) => ({ ...m })),
     }])),
@@ -191,6 +197,40 @@ function PhoneTypeahead({
         }, contactLabel(contact))))) : null);
 }
 
+
+function AgentPresetSelect({
+  value,
+  catalog,
+  disabled,
+  onChange,
+  ariaLabel = 'Agent Preset',
+}) {
+  const current = typeof value === 'string' ? value : '';
+  const items = [];
+  const seen = new Set();
+  for (const item of Array.isArray(catalog?.items) ? catalog.items : []) {
+    if (!item?.id || seen.has(item.id)) continue;
+    seen.add(item.id);
+    items.push(item);
+  }
+  if (current && !seen.has(current)) {
+    items.push({ id: current, label: current, unavailable: true });
+  }
+  return h('select', {
+    className: 'dim-accessCompactSelect',
+    value: current,
+    disabled,
+    title: ariaLabel,
+    'aria-label': ariaLabel,
+    onChange: (event) => onChange(event.target.value || ''),
+  },
+  h('option', { value: '' }, '跟随全局'),
+  ...items.map((item) => h('option', {
+    key: item.id,
+    value: item.id,
+  }, item.unavailable ? item.label + localizeText('（不可用）') : item.label)));
+}
+
 function MemberRows({
   title,
   members,
@@ -198,22 +238,32 @@ function MemberRows({
   disabled,
   onChange,
   nested = false,
+  showAgentPreset = false,
+  presetCatalog = EMPTY_AGENT_PRESET_CATALOG,
 }) {
+  const columns = showAgentPreset ? 5 : 4;
   return h(nested ? 'div' : 'fieldset', {
     className: nested ? 'dim-accessSubblock' : 'dim-accessScene',
     ...(nested ? {} : { disabled }),
   },
     nested ? h('h4', { className: 'dim-accessSubblockTitle' }, title) : h('legend', null, title),
     h('div', { className: 'dim-accessTableWrap' },
-      h('table', { className: 'dim-accessTable', 'data-kind': 'member' },
+      h('table', {
+        className: 'dim-accessTable',
+        'data-kind': showAgentPreset ? 'member-preset' : 'member',
+      },
         h('thead', null,
           h('tr', null,
             h('th', { scope: 'col' }, '昵称'),
             h('th', { scope: 'col' }, '电话'),
             h('th', { scope: 'col' }, '命令权限'),
+            showAgentPreset ? h('th', { scope: 'col' }, 'Agent Preset') : null,
             h('th', { scope: 'col', className: 'dim-accessTableActions' }, '操作'))),
         h('tbody', null, members.length === 0
-          ? h('tr', null, h('td', { colSpan: 4, className: 'dim-accessTableEmpty' }, '暂无用户，可点下方新增。'))
+          ? h('tr', null, h('td', {
+            colSpan: columns,
+            className: 'dim-accessTableEmpty',
+          }, '暂无用户，可点下方新增。'))
           : members.map((member, index) =>
             h('tr', { key: `member-${index}` },
               h('td', { className: 'dim-accessTableNick' },
@@ -243,6 +293,20 @@ function MemberRows({
                 },
                 h('option', { value: 'allow' }, '可执行命令'),
                 h('option', { value: 'deny' }, '不可执行命令'))),
+              showAgentPreset ? h('td', { className: 'dim-accessTablePreset' },
+                h(AgentPresetSelect, {
+                  value: member.agentPreset ?? '',
+                  catalog: presetCatalog,
+                  disabled,
+                  ariaLabel: 'Agent Preset',
+                  onChange: (preset) => onChange(members.map((entry, i) => {
+                    if (i !== index) return entry;
+                    const next = { ...entry };
+                    if (preset) next.agentPreset = preset;
+                    else delete next.agentPreset;
+                    return next;
+                  })),
+                })) : null,
               h('td', { className: 'dim-accessTableActions' },
                 h('button', {
                   type: 'button',
@@ -339,6 +403,10 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
   const [feedback, setFeedback] = React.useState(null);
   const [newGroupJid, setNewGroupJid] = React.useState('');
   const [loadingGrant, setLoadingGrant] = React.useState(!initialGrant);
+  const contextCatalog = React.useContext(AgentPresetCatalogContext);
+  const [presetCatalog, setPresetCatalog] = React.useState(() => normalizeAgentPresetCatalog(
+    account?.agentPresetCatalog ?? contextCatalog ?? EMPTY_AGENT_PRESET_CATALOG,
+  ));
 
   React.useEffect(() => {
     setDraft(cloneGrant(normalizeAccessGrant(account?.accessGrant), ownerPhone));
@@ -354,6 +422,9 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
       try {
         const value = unwrapRpcResult(await rpcCall('connection.status', {}));
         if (cancelled) return;
+        if (value?.agentPresetCatalog) {
+          setPresetCatalog(normalizeAgentPresetCatalog(value.agentPresetCatalog));
+        }
         const bot = Array.isArray(value?.bots)
           ? value.bots.find((entry) => entry?.botId === account.botId)
           : null;
@@ -521,6 +592,8 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
     members: draft.directMembers,
     contacts,
     disabled: saving,
+    showAgentPreset: true,
+    presetCatalog,
     onChange: (directMembers) => {
       setDraft((current) => ({ ...current, directMembers }));
       setFeedback(null);
@@ -618,6 +691,27 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
                   }
                 }),
               }, '同步群名')),
+            h('label', { className: 'dim-accessField' },
+              h('span', null, '群 Agent Preset'),
+              h(AgentPresetSelect, {
+                value: group.agentPreset ?? '',
+                catalog: presetCatalog,
+                disabled: saving,
+                ariaLabel: '群 Agent Preset',
+                onChange: (preset) => setDraft((current) => {
+                  const existing = current.groups[groupJid] ?? { title: '', admins: [], members: [] };
+                  const nextGroup = { ...existing };
+                  if (preset) nextGroup.agentPreset = preset;
+                  else delete nextGroup.agentPreset;
+                  return {
+                    ...current,
+                    groups: {
+                      ...current.groups,
+                      [groupJid]: nextGroup,
+                    },
+                  };
+                }),
+              })),
             h(AdminPhones, {
               title: '本群管理员',
               help: '未配置时，本群申请回落给全局管理员审批（仍只授予本群权）。',

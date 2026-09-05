@@ -148,6 +148,8 @@ export class TextHarnessBridge {
   #logger;
   #replyTimeoutMs;
   #signal;
+  /** @type {((message: object) => string|null|undefined)|null} */
+  #resolveAgentPreset;
   #queues = new Map();
   #pendingInteractions = new Map();
   #interactionKeys = new Map();
@@ -170,6 +172,7 @@ export class TextHarnessBridge {
     logger = console,
     replyTimeoutMs = 600_000,
     signal,
+    resolveAgentPreset,
   }) {
     if (!descriptor?.key || !descriptor?.label) throw new TypeError('A channel descriptor is required');
     if (!bot || typeof bot.sendText !== 'function') throw new TypeError('A bot client is required');
@@ -185,6 +188,7 @@ export class TextHarnessBridge {
     this.#logger = logger;
     this.#replyTimeoutMs = replyTimeoutMs;
     this.#signal = signal;
+    this.#resolveAgentPreset = typeof resolveAgentPreset === 'function' ? resolveAgentPreset : null;
     this.#approvals = new HarnessApprovalQueue({
       label: descriptor.key,
       logger,
@@ -735,7 +739,13 @@ export class TextHarnessBridge {
         text,
         content,
         contextEnhanced,
-        createOptions: this.#signal ? { signal: this.#signal } : undefined,
+        createOptions: (() => {
+          const agentPreset = this.#resolveAgentPreset?.(message);
+          const options = {};
+          if (this.#signal) options.signal = this.#signal;
+          if (typeof agentPreset === 'string' && agentPreset) options.agentPreset = agentPreset;
+          return Object.keys(options).length > 0 ? options : undefined;
+        })(),
         existsOptions: this.#signal ? { signal: this.#signal } : undefined,
         askOptions: {
           timeoutMs: this.#replyTimeoutMs,

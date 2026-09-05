@@ -66,6 +66,7 @@ export function publicAccessGrant(grant) {
     directMembers: normalized.directMembers.map((m) => ({ ...m })),
     groups: Object.fromEntries(Object.entries(normalized.groups).map(([jid, group]) => [jid, {
       ...(group.title ? { title: group.title } : {}),
+      ...(group.agentPreset ? { agentPreset: group.agentPreset } : {}),
       admins: [...group.admins],
       members: group.members.map((m) => ({ ...m })),
     }])),

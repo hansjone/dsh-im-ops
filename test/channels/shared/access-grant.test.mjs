@@ -15,6 +15,7 @@ import {
   parsePendingIdFromNotifyText,
   resolveAccessPending,
   upsertAccessContact,
+  resolveAccessAgentPreset,
   validateAccessGrant,
 } from '../../../src/channels/shared/access-grant.mjs';
 
@@ -193,4 +194,56 @@ test('quote approval helpers parse intent, pending id, and notify refs', () => {
     }],
   };
   assert.equal(findPendingByNotifyMessageId(withRef, 'MSG1')?.id, 'p_abc123');
+});
+
+
+test('resolveAccessAgentPreset prefers direct-member and group overrides over global', () => {
+  const doc = grant({
+    directMembers: [
+      { phone: '8618222222222', canExecuteCommands: true, agentPreset: 'ops-user' },
+      { phone: '8618333333333', canExecuteCommands: true },
+    ],
+    groups: {
+      [GROUP_A]: {
+        title: 'A',
+        agentPreset: 'ops-group',
+        admins: [],
+        members: [{ phone: '8618444444444', canExecuteCommands: true }],
+      },
+    },
+  });
+  assert.equal(resolveAccessAgentPreset(doc, {
+    kind: 'direct',
+    phone: '8618222222222',
+  }), 'ops-user');
+  assert.equal(resolveAccessAgentPreset(doc, {
+    kind: 'direct',
+    phone: '8618333333333',
+  }), null);
+  assert.equal(resolveAccessAgentPreset(doc, {
+    kind: 'group',
+    groupJid: GROUP_A,
+  }), 'ops-group');
+  assert.equal(resolveAccessAgentPreset(doc, {
+    kind: 'group',
+    groupJid: GROUP_B,
+  }), null);
+});
+
+test('validateAccessGrant keeps optional agentPreset on members and groups', () => {
+  const doc = grant({
+    directMembers: [{ phone: '8618222222222', canExecuteCommands: false, agentPreset: 'desk' }],
+    groups: {
+      [GROUP_A]: {
+        agentPreset: 'night',
+        admins: ['8618111111111'],
+        members: [],
+      },
+    },
+  });
+  assert.equal(doc.directMembers[0].agentPreset, 'desk');
+  assert.equal(doc.groups[GROUP_A].agentPreset, 'night');
+  assert.throws(() => grant({
+    directMembers: [{ phone: '8618222222222', canExecuteCommands: true, agentPreset: 'BAD Preset' }],
+  }), /Agent Preset/);
 });

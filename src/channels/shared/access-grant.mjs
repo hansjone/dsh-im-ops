@@ -7,11 +7,18 @@ export const ACCESS_GRANT_VERSION = 1;
 export const ACCESS_PENDING_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const ACCESS_GRANT_PHONE_MAX_LENGTH = 32;
 export const ACCESS_GRANT_GROUP_JID_PATTERN = /^\d{5,32}@g\.us$/;
+const AGENT_PRESET_ID = /^[a-z0-9][a-z0-9-]*$/;
 
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/;
 
 /** @typedef {'direct' | 'group'} AccessGrantScene */
 /** @typedef {'approve' | 'deny'} AccessPendingAction */
+
+function normalizeOptionalAgentPresetId(value) {
+  if (typeof value !== 'string') return null;
+  const id = value.trim();
+  return AGENT_PRESET_ID.test(id) ? id : null;
+}
 
 function invalidGrant(message) {
   const error = new TypeError(message);
@@ -75,7 +82,7 @@ export function validateGroupJid(value) {
 
 /**
  * @param {unknown} input
- * @returns {{ phone: string, canExecuteCommands: boolean }}
+ * @returns {{ phone: string, canExecuteCommands: boolean, agentPreset?: string }}
  */
 function validateMember(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -85,7 +92,24 @@ function validateMember(input) {
   const canExecuteCommands = input.canExecuteCommands === undefined
     ? true
     : Boolean(input.canExecuteCommands);
-  return Object.freeze({ phone, canExecuteCommands });
+  const agentPreset = optionalAgentPreset(input.agentPreset);
+  return Object.freeze({
+    phone,
+    canExecuteCommands,
+    ...(agentPreset ? { agentPreset } : {}),
+  });
+}
+
+/**
+ * Optional Agent Preset override. Empty/null means follow the bot-level preset.
+ * @param {unknown} value
+ * @returns {string|undefined}
+ */
+function optionalAgentPreset(value) {
+  if (value == null || value === '') return undefined;
+  const id = normalizeOptionalAgentPresetId(value);
+  if (!id) invalidGrant('Agent Preset 无效。');
+  return id;
 }
 
 /**
@@ -119,8 +143,10 @@ function validateGroupGrant(input) {
     invalidGrant('群成员不能包含重复电话。');
   }
   const title = typeof input.title === 'string' ? input.title.trim().slice(0, 128) : '';
+  const agentPreset = optionalAgentPreset(input.agentPreset);
   return Object.freeze({
     ...(title ? { title } : {}),
+    ...(agentPreset ? { agentPreset } : {}),
     admins,
     members,
   });
@@ -280,6 +306,30 @@ export function normalizeAccessGrant(input) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Resolve a chat-scoped Agent Preset override from the access grant.
+ * Returns null when the chat should follow the bot-level (global) preset.
+ * Priority: direct-member or group override > bot global (caller applies global).
+ * @param {unknown} grant
+ * @param {{ kind?: string, phone?: string, senderId?: string, groupJid?: string, conversationId?: string }} [context]
+ * @returns {string|null}
+ */
+export function resolveAccessAgentPreset(grant, context = {}) {
+  const doc = normalizeAccessGrant(grant);
+  if (!doc) return null;
+  if (context.kind === 'group') {
+    const groupJid = typeof context.groupJid === 'string' && context.groupJid.trim()
+      ? context.groupJid.trim()
+      : typeof context.conversationId === 'string' ? context.conversationId.trim() : '';
+    if (!groupJid || !ACCESS_GRANT_GROUP_JID_PATTERN.test(groupJid)) return null;
+    return normalizeOptionalAgentPresetId(doc.groups[groupJid]?.agentPreset) ?? null;
+  }
+  const phone = normalizeAccessPhone(context.phone ?? context.senderId);
+  if (!phone) return null;
+  const member = doc.directMembers.find((entry) => entry.phone === phone);
+  return normalizeOptionalAgentPresetId(member?.agentPreset) ?? null;
 }
 
 /**
