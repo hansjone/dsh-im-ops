@@ -204,44 +204,53 @@ function MemberRows({
     ...(nested ? {} : { disabled }),
   },
     nested ? h('h4', { className: 'dim-accessSubblockTitle' }, title) : h('legend', null, title),
-    h('ul', { className: 'dim-accessCompactList' }, members.map((member, index) =>
-      h('li', {
-        key: `member-${index}`,
-        className: 'dim-accessCompactRow',
-        'data-kind': 'member',
-      },
-        h('div', { className: 'dim-accessCompactIdentity' },
-          h(PhoneTypeahead, {
-            value: member.phone,
-            contacts,
-            disabled,
-            placeholder: '8613800000000',
-            onChange: (phone) => onChange(members.map((entry, i) => (
-              i === index ? { ...entry, phone } : entry
-            ))),
-          }),
-          h(NicknameHint, { contacts, phone: member.phone, shortEmpty: true })),
-        h('select', {
-          className: 'dim-accessCompactSelect',
-          title: '命令权限',
-          'aria-label': '命令权限',
-          value: member.canExecuteCommands ? 'allow' : 'deny',
-          disabled,
-          onChange: (event) => onChange(members.map((entry, i) => (
-            i === index
-              ? { ...entry, canExecuteCommands: event.target.value === 'allow' }
-              : entry
-          ))),
-        },
-        h('option', { value: 'allow' }, '可执行命令'),
-        h('option', { value: 'deny' }, '不可执行命令')),
-        h('button', {
-          type: 'button',
-          className: 'dim-deliveryButton dim-accessCompactDelete',
-          'data-kind': 'danger',
-          disabled,
-          onClick: () => onChange(members.filter((_, i) => i !== index)),
-        }, '删除')))),
+    h('div', { className: 'dim-accessTableWrap' },
+      h('table', { className: 'dim-accessTable', 'data-kind': 'member' },
+        h('thead', null,
+          h('tr', null,
+            h('th', { scope: 'col' }, '昵称'),
+            h('th', { scope: 'col' }, '电话'),
+            h('th', { scope: 'col' }, '命令权限'),
+            h('th', { scope: 'col', className: 'dim-accessTableActions' }, '操作'))),
+        h('tbody', null, members.length === 0
+          ? h('tr', null, h('td', { colSpan: 4, className: 'dim-accessTableEmpty' }, '暂无用户，可点下方新增。'))
+          : members.map((member, index) =>
+            h('tr', { key: `member-${index}` },
+              h('td', { className: 'dim-accessTableNick' },
+                h(NicknameHint, { contacts, phone: member.phone, shortEmpty: true })),
+              h('td', { className: 'dim-accessTablePhone' },
+                h(PhoneTypeahead, {
+                  value: member.phone,
+                  contacts,
+                  disabled,
+                  placeholder: '8613800000000',
+                  onChange: (phone) => onChange(members.map((entry, i) => (
+                    i === index ? { ...entry, phone } : entry
+                  ))),
+                })),
+              h('td', { className: 'dim-accessTablePerm' },
+                h('select', {
+                  className: 'dim-accessCompactSelect',
+                  title: '命令权限',
+                  'aria-label': '命令权限',
+                  value: member.canExecuteCommands ? 'allow' : 'deny',
+                  disabled,
+                  onChange: (event) => onChange(members.map((entry, i) => (
+                    i === index
+                      ? { ...entry, canExecuteCommands: event.target.value === 'allow' }
+                      : entry
+                  ))),
+                },
+                h('option', { value: 'allow' }, '可执行命令'),
+                h('option', { value: 'deny' }, '不可执行命令'))),
+              h('td', { className: 'dim-accessTableActions' },
+                h('button', {
+                  type: 'button',
+                  className: 'dim-deliveryButton dim-accessCompactDelete',
+                  'data-kind': 'danger',
+                  disabled,
+                  onClick: () => onChange(members.filter((_, i) => i !== index)),
+                }, '删除'))))))),
     h('button', {
       type: 'button',
       className: 'dim-deliveryButton',
@@ -266,36 +275,44 @@ function AdminPhones({
   },
     nested ? h('h4', { className: 'dim-accessSubblockTitle' }, title) : h('legend', null, title),
     help ? h('p', { className: 'dim-accessHint' }, help) : null,
-    h('ul', { className: 'dim-accessCompactList' }, phones.map((phone, index) => {
-      const locked = lockedPhone && phone === lockedPhone;
-      return h('li', {
-        key: `admin-${index}`,
-        className: 'dim-accessCompactRow',
-        'data-kind': 'admin',
-        ...(locked ? { 'data-locked': 'true' } : {}),
-      },
-        h('div', { className: 'dim-accessCompactIdentity' },
-          h(PhoneTypeahead, {
-            value: phone,
-            contacts,
-            disabled: disabled || locked,
-            placeholder: '8613800000000',
-            onChange: (next) => onChange(phones.map((entry, i) => (i === index ? next : entry))),
-          }),
-          locked
-            ? h('span', { className: 'dim-accessNickname' }, '绑定账号（全局管理员）')
-            : h(NicknameHint, { contacts, phone, shortEmpty: true })),
-        h('span', { className: 'dim-accessCompactSelectSlot', 'aria-hidden': 'true' }),
-        locked
-          ? h('span', { className: 'dim-accessCompactDeleteSlot', 'aria-hidden': 'true' })
-          : h('button', {
-            type: 'button',
-            className: 'dim-deliveryButton dim-accessCompactDelete',
-            'data-kind': 'danger',
-            disabled,
-            onClick: () => onChange(phones.filter((_, i) => i !== index)),
-          }, '删除'));
-    })),
+    h('div', { className: 'dim-accessTableWrap' },
+      h('table', { className: 'dim-accessTable', 'data-kind': 'admin' },
+        h('thead', null,
+          h('tr', null,
+            h('th', { scope: 'col' }, '昵称'),
+            h('th', { scope: 'col' }, '电话'),
+            h('th', { scope: 'col', className: 'dim-accessTableActions' }, '操作'))),
+        h('tbody', null, phones.length === 0
+          ? h('tr', null, h('td', { colSpan: 3, className: 'dim-accessTableEmpty' }, '暂无管理员，可点下方新增。'))
+          : phones.map((phone, index) => {
+            const locked = lockedPhone && phone === lockedPhone;
+            return h('tr', {
+              key: `admin-${index}`,
+              ...(locked ? { 'data-locked': 'true' } : {}),
+            },
+              h('td', { className: 'dim-accessTableNick' },
+                locked
+                  ? h('span', { className: 'dim-accessNickname' }, '绑定账号')
+                  : h(NicknameHint, { contacts, phone, shortEmpty: true })),
+              h('td', { className: 'dim-accessTablePhone' },
+                h(PhoneTypeahead, {
+                  value: phone,
+                  contacts,
+                  disabled: disabled || locked,
+                  placeholder: '8613800000000',
+                  onChange: (next) => onChange(phones.map((entry, i) => (i === index ? next : entry))),
+                })),
+              h('td', { className: 'dim-accessTableActions' },
+                locked
+                  ? h('span', { className: 'dim-accessTableLocked' }, '不可删除')
+                  : h('button', {
+                    type: 'button',
+                    className: 'dim-deliveryButton dim-accessCompactDelete',
+                    'data-kind': 'danger',
+                    disabled,
+                    onClick: () => onChange(phones.filter((_, i) => i !== index)),
+                  }, '删除')));
+          })))),
     h('button', {
       type: 'button',
       className: 'dim-deliveryButton',

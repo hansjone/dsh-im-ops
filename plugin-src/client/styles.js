@@ -471,6 +471,29 @@ body[data-ds-dark-theme] .dim-page select option, body[data-ds-dark-theme] .dim-
 .dim-accessCompactDelete, .dim-accessCompactDeleteSlot { width: 100%; min-height: 32px; justify-self: stretch; }
 .dim-accessCompactDelete { padding-inline: 8px; }
 .dim-accessCompactDeleteSlot { display: block; }
+.dim-accessTableWrap { min-width: 0; margin-top: 8px; overflow: auto; border: 1px solid var(--dsw-alias-border-l1, #eef0f3); border-radius: 8px; background: var(--dsw-alias-bg-layer-1, #fff); }
+.dim-accessTable { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.dim-accessTable th, .dim-accessTable td { padding: 8px 10px; border-bottom: 1px solid var(--dsw-alias-border-l1, #eef0f3); text-align: left; vertical-align: middle; }
+.dim-accessTable th { color: var(--dsw-alias-label-tertiary, #8f959e); font-size: 11px; line-height: 16px; font-weight: 600; background: color-mix(in srgb, var(--dsw-alias-bg-module-platform, #f7f8fa) 80%, transparent); }
+.dim-accessTable tbody tr:last-child td { border-bottom: 0; }
+.dim-accessTable tbody tr:focus-within { background: color-mix(in srgb, var(--dsw-alias-bg-module-platform, #f7f8fa) 70%, transparent); }
+.dim-accessTable[data-kind="admin"] th:nth-child(1), .dim-accessTable[data-kind="admin"] td:nth-child(1) { width: 28%; }
+.dim-accessTable[data-kind="admin"] th:nth-child(2), .dim-accessTable[data-kind="admin"] td:nth-child(2) { width: 52%; }
+.dim-accessTable[data-kind="admin"] th:nth-child(3), .dim-accessTable[data-kind="admin"] td:nth-child(3) { width: 20%; }
+.dim-accessTable[data-kind="member"] th:nth-child(1), .dim-accessTable[data-kind="member"] td:nth-child(1) { width: 20%; }
+.dim-accessTable[data-kind="member"] th:nth-child(2), .dim-accessTable[data-kind="member"] td:nth-child(2) { width: 36%; }
+.dim-accessTable[data-kind="member"] th:nth-child(3), .dim-accessTable[data-kind="member"] td:nth-child(3) { width: 28%; }
+.dim-accessTable[data-kind="member"] th:nth-child(4), .dim-accessTable[data-kind="member"] td:nth-child(4) { width: 16%; }
+.dim-accessTableNick { min-width: 0; }
+.dim-accessTableNick .dim-accessNickname { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dim-accessTablePhone { min-width: 0; position: relative; z-index: 0; }
+.dim-accessTablePhone:focus-within { z-index: 6; }
+.dim-accessTablePhone .dim-accessTypeahead > input { height: 32px; }
+.dim-accessTablePerm { min-width: 0; }
+.dim-accessTableActions { width: 72px; white-space: nowrap; text-align: right; }
+.dim-accessTableActions .dim-accessCompactDelete { width: auto; min-width: 52px; }
+.dim-accessTableEmpty { color: var(--dsw-alias-label-tertiary, #8f959e); font-size: 12px; text-align: center; }
+.dim-accessTableLocked { color: var(--dsw-alias-label-tertiary, #8f959e); font-size: 12px; }
 .dim-accessDeleteUser { margin-bottom: 1px; }
 .dim-accessUnsupported { padding: 18px 14px; border: 1px dashed var(--dsw-alias-border-l2, #dfe1e5); border-radius: 9px; color: var(--dsw-alias-label-secondary, #646a73); background: var(--dsw-alias-bg-module-platform, #f7f8fa); text-align: center; }
 .dim-accessUnsupported strong { color: var(--dsw-alias-label-primary, #1f2329); font-size: 13px; line-height: 20px; }
