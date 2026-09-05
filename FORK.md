@@ -24,7 +24,7 @@ dsh plugin --profile web add -w "github:hansjone/dsh-im-ops"
 # 重启 dsh web
 ```
 
-包名：`dsh-im-ops@4.9.1-ops.2`（cordis id：`dsh-im-ops`）。
+包名：`dsh-im-ops@4.9.1-ops.3`（cordis id：`dsh-im-ops`）。
 
 扫码态一般仍在 `~/.dsh/integrations/…`；换包后若异常，在 IM 设置里重新关联设备。
 
@@ -38,7 +38,7 @@ dsh plugin --profile web add -w "github:hansjone/dsh-im-ops"
 
 2. **访问控制**仍由本 fork 持久化（`workspaces.json` 的 `accessPolicies`），设置 UI 与上游同构，运维可直接改白名单 / open 模式
 
-3. **WhatsApp LID**：群参与者常为不透明 `@lid`，白名单只填手机号时会被静默拒绝。`4.9.1-ops.2` 用 Baileys LID→PN 映射扩展 sender 别名，并在 @ 提及匹配时同样解析；若仍被拒绝会回一句白名单提示
+3. **WhatsApp LID**：群参与者常为不透明 `@lid`，白名单只填手机号时会被静默拒绝。`4.9.1-ops.3` 用 Baileys LID→PN 映射扩展 sender 别名，并在 @ 提及匹配时同样解析；若仍被拒绝会回一句白名单提示
 
 4. **主动群通告**继续用既有 delivery（`botId + targetId`），与入站 Session 策略独立
 

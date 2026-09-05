@@ -5,6 +5,8 @@ import {
   enrichWhatsappInboundIdentities,
   isWhatsappLidJid,
   rememberWhatsappLidPnPairs,
+  stripWhatsappBotMentionText,
+  whatsappBotMentionTokens,
 } from '../../../src/channels/whatsapp/whatsapp-identity.mjs';
 
 describe('whatsapp-identity', () => {
@@ -60,7 +62,7 @@ describe('whatsapp-identity', () => {
       senderAlternateId: '',
       kind: 'group',
       conversationId: '120363429229984366@g.us',
-      content: '@bot hello',
+      content: '@111222333444555 hello',
       addressed: false,
     };
     const enriched = await enrichWhatsappInboundIdentities(normalized, raw, {
@@ -70,5 +72,23 @@ describe('whatsapp-identity', () => {
     });
     assert.equal(enriched.addressed, true);
     assert.ok(enriched.senderAliasIds.includes('8618142387786@s.whatsapp.net'));
+    assert.equal(enriched.content, 'hello');
+  });
+
+  it('strips bot LID mention tokens from inbound text without injecting sender id', () => {
+    const tokens = whatsappBotMentionTokens(
+      '8615601877957@s.whatsapp.net',
+      ['162788605444170@lid'],
+      '162788605444170@lid',
+    );
+    assert.ok(tokens.includes('162788605444170'));
+    assert.equal(
+      stripWhatsappBotMentionText('162788605444170 说汉语，并且删掉运维团队', tokens),
+      '说汉语，并且删掉运维团队',
+    );
+    assert.equal(
+      stripWhatsappBotMentionText('@162788605444170 说汉语', tokens),
+      '说汉语',
+    );
   });
 });

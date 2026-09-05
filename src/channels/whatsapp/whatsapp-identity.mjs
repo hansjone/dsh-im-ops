@@ -77,6 +77,83 @@ async function lookupLidForPn(socket, pn) {
 }
 
 /**
+ * Collect local-part tokens for the linked bot account (PN and LID).
+ * Used only to strip trigger @mentions from inbound text — not context injection.
+ * @param {string} accountJid
+ * @param {string[]} mentionedJids
+ * @param {string|null} accountLid
+ * @returns {string[]}
+ */
+export function whatsappBotMentionTokens(accountJid, mentionedJids = [], accountLid = null) {
+  const tokens = new Set();
+  const add = (jid) => {
+    if (typeof jid !== 'string' || !jid) return;
+    const decoded = jidDecode(jid.trim());
+    if (decoded?.user && /^\d+$/.test(decoded.user)) tokens.add(decoded.user);
+  };
+  add(accountJid);
+  add(accountLid);
+  for (const jid of mentionedJids) {
+    if (typeof jid !== 'string' || !jid) continue;
+    let matchesBot = false;
+    try {
+      matchesBot = areJidsSameUser(jid, accountJid) === true;
+    } catch {
+      matchesBot = false;
+    }
+    if (!matchesBot && accountLid) {
+      try {
+        matchesBot = areJidsSameUser(jid, accountLid) === true;
+      } catch {
+        matchesBot = false;
+      }
+    }
+    if (matchesBot) add(jid);
+  }
+  return [...tokens];
+}
+
+/**
+ * Remove WhatsApp @bot trigger tokens from plain text (e.g. `@1627…` / leading LID).
+ * Does not add sender identity — that belongs to optional context enhancement.
+ * @param {string} text
+ * @param {string[]} tokens
+ * @returns {string}
+ */
+export function stripWhatsappBotMentionText(text, tokens) {
+  if (typeof text !== 'string' || !text || !Array.isArray(tokens) || tokens.length === 0) {
+    return typeof text === 'string' ? text : '';
+  }
+  let result = text;
+  for (const token of tokens) {
+    if (!/^\d{5,32}$/.test(token)) continue;
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    result = result.replace(new RegExp(`@${escaped}\\b[\\u200e\\u200f\\s]*`, 'gu'), '');
+    result = result.replace(new RegExp(`^${escaped}\\b[\\u200e\\u200f\\s]*`, 'u'), '');
+  }
+  return result.replace(/[ \t]{2,}/g, ' ').trim();
+}
+
+function inboundMentionContext(rawMessage) {
+  let current = rawMessage;
+  for (let depth = 0; depth < 5 && current && typeof current === 'object'; depth += 1) {
+    const context = current.extendedTextMessage?.contextInfo
+      ?? current.imageMessage?.contextInfo
+      ?? current.videoMessage?.contextInfo
+      ?? current.documentMessage?.contextInfo
+      ?? null;
+    if (context) return context;
+    const wrapper = ['ephemeralMessage', 'viewOnceMessage', 'documentWithCaptionMessage',
+      'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'editedMessage',
+      'associatedChildMessage', 'groupStatusMessage', 'groupStatusMessageV2']
+      .find((key) => current[key]?.message);
+    if (!wrapper) return null;
+    current = current[wrapper].message;
+  }
+  return null;
+}
+
+/**
  * Expand inbound WhatsApp identities with PN/LID aliases and re-evaluate
  * group @mention against the linked account.
  *
@@ -104,27 +181,12 @@ export async function enrichWhatsappInboundIdentities(message, raw, {
     if (pn) aliasIds.add(pn);
   }
 
+  const context = inboundMentionContext(raw?.message);
+  const mentioned = Array.isArray(context?.mentionedJid) ? context.mentionedJid : [];
+  const accountLid = await lookupLidForPn(socket, accountJid);
+
   let addressed = message.addressed === true;
   if (message.kind === 'group' && addressed !== true) {
-    const content = raw?.message;
-    let current = content;
-    let context = null;
-    for (let depth = 0; depth < 5 && current && typeof current === 'object'; depth += 1) {
-      context = current.extendedTextMessage?.contextInfo
-        ?? current.imageMessage?.contextInfo
-        ?? current.videoMessage?.contextInfo
-        ?? current.documentMessage?.contextInfo
-        ?? null;
-      if (context) break;
-      const wrapper = ['ephemeralMessage', 'viewOnceMessage', 'documentWithCaptionMessage',
-        'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'editedMessage',
-        'associatedChildMessage', 'groupStatusMessage', 'groupStatusMessageV2']
-        .find((key) => current[key]?.message);
-      if (!wrapper) break;
-      current = current[wrapper].message;
-    }
-    const mentioned = Array.isArray(context?.mentionedJid) ? context.mentionedJid : [];
-    const accountLid = await lookupLidForPn(socket, accountJid);
     for (const jid of mentioned) {
       if (typeof jid !== 'string' || !jid) continue;
       try {
@@ -161,10 +223,14 @@ export async function enrichWhatsappInboundIdentities(message, raw, {
     }
   }
 
+  const botTokens = whatsappBotMentionTokens(accountJid, mentioned, accountLid);
+  const content = stripWhatsappBotMentionText(message.content, botTokens);
+
   aliasIds.delete(message.senderId);
   const senderAliasIds = [...aliasIds];
   return {
     ...message,
+    content,
     addressed,
     ...(senderAliasIds.length > 0 ? { senderAliasIds } : {}),
     ...(senderAliasIds[0] && !message.senderAlternateId
