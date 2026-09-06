@@ -757,6 +757,41 @@ export class BotWorkspaceStore {
     });
   }
 
+  /**
+   * Apply a mutator to the latest persisted grant inside the bot write queue.
+   * Callers must not read-modify-write outside this method — concurrent inbound
+   * (contact upsert, pending enqueue, admin approve) would otherwise lose updates.
+   * @param {string} botId
+   * @param {(current: object|null) => object|Promise<object>} mutator
+   * @param {{ incarnation?: unknown }} [options]
+   */
+  async mutateAccessGrant(botId, mutator, { incarnation } = {}) {
+    const id = botIdOf(botId);
+    if (typeof mutator !== 'function') {
+      throw new TypeError('mutateAccessGrant requires a mutator function');
+    }
+    return this.#enqueue(id, async () => {
+      if (!this.has(id)
+        || (incarnation !== undefined && incarnation !== this.incarnationFor(id))) {
+        const error = new Error('找不到要修改的机器人。');
+        error.code = 'workspace-bot-not-found';
+        throw error;
+      }
+      const previous = this.#accessGrants[id] ?? null;
+      const nextValue = await mutator(previous);
+      const grant = validateAccessGrant(nextValue);
+      this.#accessGrants[id] = grant;
+      try {
+        await this.#persist();
+      } catch (error) {
+        if (previous) this.#accessGrants[id] = previous;
+        else delete this.#accessGrants[id];
+        throw error;
+      }
+      return grant;
+    });
+  }
+
   async bindWorkspaceSession(botId, value, {
     conversationKey,
     sessionId,

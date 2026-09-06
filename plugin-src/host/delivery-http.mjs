@@ -4,6 +4,33 @@ export const DELIVERY_HTTP_PATH = '/api/dsh-im/delivery/messages';
 
 const MAX_BODY_BYTES = 1024 * 1024;
 
+/**
+ * Same loopback / same-origin gate as DSH Host APIs: delivery must not be
+ * callable from a LAN-bound Host or cross-site browser navigation.
+ * @param {import('node:http').IncomingMessage} request
+ */
+export function isTrustedDeliveryRequest(request) {
+  const host = request.headers.host ?? '';
+  if (!host) return false;
+  const hostname = host.split(':')[0].replace(/^\[|\]$/g, '');
+  if ((request.headers['sec-fetch-site'] ?? '') === 'cross-site') return false;
+  const origin = request.headers.origin;
+  if (origin !== undefined && origin !== 'null') {
+    try {
+      if (new URL(origin).host !== host) return false;
+    } catch {
+      return false;
+    }
+  }
+  const remoteHost = String(request.socket?.remoteAddress || '')
+    .replace(/^::ffff:/i, '');
+  if (remoteHost && remoteHost !== '127.0.0.1' && remoteHost !== '::1') {
+    return false;
+  }
+  return hostname === '127.0.0.1' || hostname === 'localhost'
+    || hostname === '::1' || hostname === '0.0.0.0';
+}
+
 const DELIVERY_ERROR_STATUS = Object.freeze({
   'bad-request': 400,
   'unknown-bot': 404,
@@ -68,6 +95,12 @@ async function readJsonBody(request) {
 export function createDeliveryHttpHandler(service) {
   const dispatch = createDeliveryRpcHandler(service);
   return async (request, response) => {
+    if (!isTrustedDeliveryRequest(request)) {
+      json(response, 403, {
+        error: { code: 'forbidden', message: 'forbidden', details: {} },
+      });
+      return;
+    }
     if (request.method !== 'POST') {
       json(response, 405, {
         error: { code: 'method-not-allowed', message: 'method-not-allowed', details: {} },

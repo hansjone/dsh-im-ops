@@ -34,6 +34,17 @@ function grant(overrides = {}) {
   });
 }
 
+test('ACCESS_GRANT_GROUP_JID_PATTERN accepts legacy hyphen group JIDs', () => {
+  const legacy = '123456789-120363000000000000@g.us';
+  assert.doesNotThrow(() => validateAccessGrant({
+    ...emptyAccessGrant(),
+    globalAdmins: ['8618111111111'],
+    groups: {
+      [legacy]: { admins: [], members: [] },
+    },
+  }));
+});
+
 test('normalizeAccessPhone accepts E.164, JIDs, and rejects LID servers', () => {
   assert.equal(normalizeAccessPhone('+86 181-4238-7786'), '8618142387786');
   assert.equal(normalizeAccessPhone('8618142387786@s.whatsapp.net'), '8618142387786');

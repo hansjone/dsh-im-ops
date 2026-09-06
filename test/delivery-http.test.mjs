@@ -153,6 +153,45 @@ test('delivery HTTP maps only stable delivery errors to HTTP status codes', asyn
   });
 });
 
+test('delivery HTTP rejects non-loopback Host', async () => {
+  const { service, calls } = serviceFixture();
+  const handler = createDeliveryHttpHandler(service);
+  const chunks = [];
+  const response = {
+    destroyed: false,
+    writableEnded: false,
+    writeHead(status) {
+      this.status = status;
+    },
+    end(body) {
+      this.writableEnded = true;
+      chunks.push(body);
+    },
+    once() {},
+    off() {},
+  };
+  await handler({
+    method: 'POST',
+    headers: {
+      host: '192.168.1.10:3080',
+      'content-type': 'application/json',
+    },
+    socket: { remoteAddress: '192.168.1.20' },
+    once() {},
+    off() {},
+    async *[Symbol.asyncIterator]() {
+      yield Buffer.from(JSON.stringify({
+        botId: 'bot_one', targetId: 'daily-report', text: 'nope',
+      }));
+    },
+  }, response);
+  assert.equal(response.status, 403);
+  assert.deepEqual(JSON.parse(chunks.join('')), {
+    error: { code: 'forbidden', message: 'forbidden', details: {} },
+  });
+  assert.deepEqual(calls, []);
+});
+
 test('delivery HTTP installs one exact WebServer route with Cordis lifecycle ownership', () => {
   const { service } = serviceFixture();
   const registrations = [];

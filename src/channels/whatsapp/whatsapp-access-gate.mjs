@@ -100,6 +100,18 @@ export async function rememberWhatsappContact(workspaces, botId, grant, message,
   if (!phone && !lid) return grant;
   const pushName = message.contextSource?.()?.senderName;
   try {
+    if (typeof workspaces.mutateAccessGrant === 'function') {
+      return await workspaces.mutateAccessGrant(botId, (current) => {
+        const base = current ?? grant;
+        return upsertAccessContact(base, {
+          phone,
+          lid,
+          pushName,
+          scene: message.kind === 'group' ? 'group' : 'direct',
+          groupJid: message.kind === 'group' ? message.conversationId : undefined,
+        });
+      });
+    }
     const next = upsertAccessContact(grant, {
       phone,
       lid,
@@ -144,12 +156,26 @@ export async function tryHandleWhatsappApprovalReply({
   if (!pending || pending.status !== 'pending') return false;
 
   try {
-    const { grant: next, pending: resolved } = resolveAccessPending(grant, {
-      pendingId: pending.id,
-      action: intent,
-      resolvedByPhone: phone,
-    });
-    await workspaces.setAccessGrant(botId, next);
+    let resolved = pending;
+    if (typeof workspaces.mutateAccessGrant === 'function') {
+      await workspaces.mutateAccessGrant(botId, (current) => {
+        const result = resolveAccessPending(current ?? grant, {
+          pendingId: pending.id,
+          action: intent,
+          resolvedByPhone: phone,
+        });
+        resolved = result.pending;
+        return result.grant;
+      });
+    } else {
+      const result = resolveAccessPending(grant, {
+        pendingId: pending.id,
+        action: intent,
+        resolvedByPhone: phone,
+      });
+      resolved = result.pending;
+      await workspaces.setAccessGrant(botId, result.grant);
+    }
     await sendText(
       { jid: message.replyTarget?.jid ?? `${phone}@s.whatsapp.net` },
       intent === 'approve' ? ACCESS_GRANT_COPY.adminApproved : ACCESS_GRANT_COPY.adminDenied,
@@ -264,16 +290,37 @@ export async function gateWhatsappInbound({
     return { allowed: false, reason: 'group-unaddressed', grant: current };
   }
 
-  const { grant: withPending, pending, created } = enqueueAccessPending(current, {
-    kind: scene,
-    groupJid: scene === 'group' ? message.conversationId : undefined,
-    phone: phone ?? '',
-    lid: lid ?? undefined,
-    pushName: message.contextSource?.()?.senderName,
-    requestText: message.content,
-  });
-  current = withPending;
-  await workspaces.setAccessGrant(botId, current);
+  let pending;
+  let created = false;
+  if (typeof workspaces.mutateAccessGrant === 'function') {
+    let enqueued = null;
+    current = await workspaces.mutateAccessGrant(botId, (latest) => {
+      enqueued = enqueueAccessPending(latest ?? current, {
+        kind: scene,
+        groupJid: scene === 'group' ? message.conversationId : undefined,
+        phone: phone ?? '',
+        lid: lid ?? undefined,
+        pushName: message.contextSource?.()?.senderName,
+        requestText: message.content,
+      });
+      return enqueued.grant;
+    });
+    pending = enqueued.pending;
+    created = enqueued.created;
+  } else {
+    const enqueued = enqueueAccessPending(current, {
+      kind: scene,
+      groupJid: scene === 'group' ? message.conversationId : undefined,
+      phone: phone ?? '',
+      lid: lid ?? undefined,
+      pushName: message.contextSource?.()?.senderName,
+      requestText: message.content,
+    });
+    current = enqueued.grant;
+    pending = enqueued.pending;
+    created = enqueued.created;
+    await workspaces.setAccessGrant(botId, current);
+  }
 
   const ack = !phone
     ? ACCESS_GRANT_COPY.pendingUnresolved
@@ -310,8 +357,14 @@ export async function gateWhatsappInbound({
       }
     }
     if (refs.length > 0) {
-      current = attachPendingNotifyRefs(current, pending.id, refs);
-      await workspaces.setAccessGrant(botId, current);
+      if (typeof workspaces.mutateAccessGrant === 'function') {
+        current = await workspaces.mutateAccessGrant(botId, (latest) => (
+          attachPendingNotifyRefs(latest ?? current, pending.id, refs)
+        ));
+      } else {
+        current = attachPendingNotifyRefs(current, pending.id, refs);
+        await workspaces.setAccessGrant(botId, current);
+      }
     }
   }
 

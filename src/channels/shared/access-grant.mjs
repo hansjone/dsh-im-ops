@@ -6,7 +6,7 @@
 export const ACCESS_GRANT_VERSION = 1;
 export const ACCESS_PENDING_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const ACCESS_GRANT_PHONE_MAX_LENGTH = 32;
-export const ACCESS_GRANT_GROUP_JID_PATTERN = /^\d{5,32}@g\.us$/;
+export const ACCESS_GRANT_GROUP_JID_PATTERN = /^\d{5,32}(?:-\d{1,32})?@g\.us$/;
 const AGENT_PRESET_ID = /^[a-z0-9][a-z0-9-]*$/;
 
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/;
