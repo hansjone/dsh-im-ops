@@ -14,19 +14,35 @@
 
 ## 安装（替换社区 im）
 
+### 其他电脑 / 只跑插件（推荐）
+
+仓库已提交 `lib/` 产物时：**不必**在插件目录执行 `pnpm install` / `npm install`。
+
 ```powershell
-# 若已安装社区包，先从 profile 移除 @xmanrui/dsh-im
-cd D:\project\chatgpt\dsh-im-ops
-npm install
-npm run build
+# 拉代码（含 lib/）后，只让 DSH profile 安装本包的生产依赖（qqbot/wecom/…）
+dsh plugin --profile web add -w "D:\path\to\dsh-im-ops"
+# 或：
 dsh plugin --profile web add -w "github:hansjone/dsh-im-ops"
-# 或本地：dsh plugin --profile web add -w "D:\project\chatgpt\dsh-im-ops"
 # 重启 dsh web
 ```
 
-包名：`dsh-im-ops@4.9.1-ops.3`（cordis id：`dsh-im-ops`）。
+说明：这里的 `-w` 是 pnpm 的 **workspace-root**（装到 profile 根），不是「先手动 install 插件仓库」。Host 侧 `@deepseek-ai/*` 由 DSH 提供，插件 **不得** 再声明/安装它们（公共 registry 会 404，例如 `dsh-type-meta`）。
+
+### 本机改源码再发版
+
+```powershell
+cd D:\path\to\dsh-im-ops
+pnpm install          # 只装公开包：baileys/esbuild/…；不要指望能装 @deepseek-ai/*
+pnpm run build        # 写出 lib/
+# 再 push；或本机：
+dsh plugin --profile web add -w "D:\path\to\dsh-im-ops"
+```
+
+若已安装社区包 `@xmanrui/dsh-im`，先从 profile 移除再 add 本 fork。
 
 扫码态一般仍在 `~/.dsh/integrations/…`；换包后若异常，在 IM 设置里重新关联设备。
+
+包名：`dsh-im-ops`（cordis id：`dsh-im-ops`）。
 
 ## 已落地的运维改动
 

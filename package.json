@@ -1,6 +1,6 @@
 {
   "name": "dsh-im-ops",
-  "version": "4.9.1-ops.30",
+  "version": "4.9.1-ops.31",
   "description": "Ops fork of dsh-im (all channels kept). Based on @xmanrui/dsh-im@4.9.1 - access/session policies owned here.",
   "keywords": [
     "deepseek-harness",
@@ -66,6 +66,7 @@
     "plugin-src",
     "scripts",
     "src",
+    ".npmrc",
     "PROACTIVE_DELIVERY.md",
     "PROACTIVE_DELIVERY.en.md",
     "LICENSE",
@@ -105,7 +106,6 @@
     "undici": "7.29.0"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.0.1",
     "@larksuiteoapi/node-sdk": "1.73.0",
     "@whiskeysockets/baileys": "7.0.0-rc14",
     "esbuild": "0.25.9",
