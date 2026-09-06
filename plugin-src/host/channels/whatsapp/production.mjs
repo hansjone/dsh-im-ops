@@ -170,6 +170,7 @@ export async function createProductionController(ctx, config = {}, internals = {
   }).start();
   return {
     controller,
+    stateFor,
     deliveryAdapter: createDeliveryAdapter({
       channel: 'whatsapp', workspaces, coreController, stateFor,
     }),

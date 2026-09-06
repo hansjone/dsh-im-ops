@@ -101,6 +101,19 @@ export class ConversationStateStore {
   }
 
   /**
+   * Live conversationKey → sessionId bindings (excludes unbound provenance).
+   * @returns {Array<{ conversationKey: string, sessionId: string }>}
+   */
+  listLiveSessions() {
+    return Object.entries(this.#state.sessions)
+      .filter(([conversationKey, sessionId]) => (
+        typeof conversationKey === 'string' && conversationKey
+        && typeof sessionId === 'string' && sessionId
+      ))
+      .map(([conversationKey, sessionId]) => ({ conversationKey, sessionId }));
+  }
+
+  /**
    * Reverse-map a Harness session id to its conversation binding key.
    * Live bindings win; unbound sessions still resolve via sessionOrigins
    * so DSH can show channel provenance after `/new`.

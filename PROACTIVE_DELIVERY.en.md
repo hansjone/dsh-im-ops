@@ -316,6 +316,8 @@ No. You can edit its name, type, and native route without changing call paramete
 
 A `sessionId` identifies a Harness Session. It is not a uniform, stable message address across the nine platforms. Proactive delivery uses the stable bot and saved-target pair instead.
 
+Same-Host schedulers that need the delivery summary in a follow-up-capable Harness session should call `resolveConversationSession` / `resolveTargetSession` (channel-registered binding lookups) and then `session.append` / `inject` themselves. `send()` does not write the session log.
+
 ### The test succeeded, but the recipient cannot see the message
 
 A successful test proves only that the platform accepted the send. Check bot permissions, platform restrictions, target accuracy, and client-side filtering or archive settings.

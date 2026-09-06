@@ -316,6 +316,8 @@ Connection RPC 默认只允许当前 Host 的回环调用。若 Web profile 明�
 
 `sessionId` 标识 Harness 会话，不是九个平台统一、稳定的消息投递地址。主动投递只使用机器人和已保存目标的稳定组合。
 
+同 Host 的调度插件若需要把投递摘要写回可继续聊的 Harness 会话，应另行调用 `resolveConversationSession` / `resolveTargetSession`（由渠道注册的会话绑定反查），再自行 `session.append` / `inject`；`send()` 本身不写会话日志。
+
 ### 测试成功但对方没有看到消息
 
 测试成功只证明平台接口接受发送。请继续检查机器人权限、平台限制、目标是否正确，以及客户端侧的消息过滤或归档设置。

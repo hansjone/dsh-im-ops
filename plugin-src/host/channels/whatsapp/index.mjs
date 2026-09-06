@@ -1,5 +1,6 @@
 import { createProductionController } from './production.mjs';
 import { installWhatsappRpc } from './rpc.mjs';
+import { conversationKeyMatchesTarget } from '../../../../src/channels/shared/delivery-session-keys.mjs';
 
 export const name = 'dsh-im-whatsapp-host';
 export const inject = ['connection', 'typertGateway'];
@@ -18,6 +19,7 @@ export async function apply(ctx, config = {}) {
     config.rpcAuthority,
   );
   let unregisterPeer = () => {};
+  let unregisterConversation = () => {};
   try {
     const dshIm = typeof ctx.get === 'function' ? ctx.get('dshIm') : undefined;
     if (dshIm && typeof dshIm.registerPeerResolver === 'function'
@@ -26,10 +28,40 @@ export async function apply(ctx, config = {}) {
         production.controller.resolveChannelPeer(sessionId)
       ));
     }
+    if (dshIm && typeof dshIm.registerConversationSessionResolver === 'function'
+      && typeof production.stateFor === 'function') {
+      const resolve = async (botId, conversationKey) => {
+        try {
+          const state = await production.stateFor(botId);
+          const sessionId = state?.sessionFor?.(conversationKey);
+          return typeof sessionId === 'string' && sessionId ? sessionId : null;
+        } catch {
+          return null;
+        }
+      };
+      resolve.findByTarget = async (botId, target) => {
+        try {
+          const state = await production.stateFor(botId);
+          const rows = typeof state?.listLiveSessions === 'function'
+            ? state.listLiveSessions()
+            : [];
+          for (const row of rows) {
+            if (conversationKeyMatchesTarget(row.conversationKey, target)) {
+              return row;
+            }
+          }
+        } catch {
+          return null;
+        }
+        return null;
+      };
+      unregisterConversation = dshIm.registerConversationSessionResolver(resolve);
+    }
   } catch {
     // dshIm optional during partial boots
   }
   ctx.effect(() => async () => {
+    unregisterConversation?.();
     unregisterPeer?.();
     await unregisterDelivery?.();
     await production.close();
