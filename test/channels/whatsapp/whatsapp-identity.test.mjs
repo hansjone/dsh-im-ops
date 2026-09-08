@@ -5,11 +5,37 @@ import {
   enrichWhatsappInboundIdentities,
   isWhatsappLidJid,
   rememberWhatsappLidPnPairs,
+  resolveWhatsappSelfChatJid,
   stripWhatsappBotMentionText,
   whatsappBotMentionTokens,
 } from '../../../src/channels/whatsapp/whatsapp-identity.mjs';
 
 describe('whatsapp-identity', () => {
+
+  it('resolves self-chat jid to live LID before stored PN', async () => {
+    const accountJid = '8615601877957@s.whatsapp.net';
+    const lid = '111222333444555@lid';
+    assert.equal(await resolveWhatsappSelfChatJid({
+      accountJid,
+      socket: { user: { id: accountJid, lid } },
+    }), lid);
+    assert.equal(await resolveWhatsappSelfChatJid({
+      accountJid,
+      socket: {
+        signalRepository: {
+          lidMapping: {
+            getLIDForPN: async (pn) => (pn === accountJid ? lid : null),
+          },
+        },
+      },
+    }), lid);
+    assert.equal(await resolveWhatsappSelfChatJid({
+      accountJid,
+      lidPnCache: new Map([['111222333444555', accountJid]]),
+    }), lid);
+    assert.equal(await resolveWhatsappSelfChatJid({ accountJid }), accountJid);
+  });
+
   it('recognizes lid jids', () => {
     assert.equal(isWhatsappLidJid('91010910658657@lid'), true);
     assert.equal(isWhatsappLidJid('8618142387786@s.whatsapp.net'), false);

@@ -18,6 +18,7 @@ import {
   OutboundArtifactRegistry,
   createOutboundArtifactTool,
 } from '../../../src/channels/shared/semantic/artifact.mjs';
+import { rememberConnectionTestTarget } from '../../../src/channels/shared/connection-test.mjs';
 import {
   WHATSAPP_ACCESS_MODES,
   WhatsappConfigStore,
@@ -1479,6 +1480,86 @@ test('WhatsApp runtime sends a connection test to self and suppresses its outbou
   });
   assert.equal(askCount, 0);
   await runtime.stop();
+});
+
+test('WhatsApp connection test prefers bound private chat then live LID, never Harness ask', async () => {
+  const sent = [];
+  const accountLid = '987654321098765@lid';
+  const peerJid = '16505550999@s.whatsapp.net';
+  const state = {
+    hasSeen: () => false,
+    markSeen: async () => {},
+    sessionFor: () => 'session-connection-test-bound',
+    sessionExists: async () => true,
+  };
+  rememberConnectionTestTarget(state, { jid: peerJid, selfChat: false });
+  let askCount = 0;
+  const runtime = new WhatsappRuntime({
+    config: linkedConfig(),
+    authDir: '/tmp/test-whatsapp-connection-test-bound',
+    harness: {
+      ensureRunning: async () => {},
+      sessionExists: async () => true,
+      ask: async () => { askCount += 1; return 'unexpected'; },
+    },
+    state,
+    createSession: async () => ({
+      socket: {
+        user: { id: ACCOUNT_JID, lid: accountLid },
+        sendPresenceUpdate: async () => {},
+        readMessages: async () => {},
+        sendMessage: async (jid, content) => {
+          sent.push([jid, content]);
+          return { key: { id: `ct-${sent.length}` } };
+        },
+      },
+      ready: Promise.resolve({ accountJid: ACCOUNT_JID, name: 'Harness WhatsApp' }),
+      close: async () => {},
+      logout: async () => {},
+    }),
+  });
+
+  await runtime.start();
+  assert.deepEqual(await runtime.sendConnectionTest('bound probe'), { sent: true });
+  assert.deepEqual(sent, [[peerJid, { text: 'bound probe' }]]);
+  assert.equal(askCount, 0);
+
+  const unbound = {
+    hasSeen: () => false,
+    markSeen: async () => {},
+    sessionFor: () => 'session-connection-test-lid',
+    sessionExists: async () => true,
+  };
+  const lidRuntime = new WhatsappRuntime({
+    config: linkedConfig(),
+    authDir: '/tmp/test-whatsapp-connection-test-lid',
+    harness: {
+      ensureRunning: async () => {},
+      sessionExists: async () => true,
+      ask: async () => { askCount += 1; return 'unexpected'; },
+    },
+    state: unbound,
+    createSession: async () => ({
+      socket: {
+        user: { id: ACCOUNT_JID, lid: accountLid },
+        sendPresenceUpdate: async () => {},
+        readMessages: async () => {},
+        sendMessage: async (jid, content) => {
+          sent.push([jid, content]);
+          return { key: { id: `ct-${sent.length}` } };
+        },
+      },
+      ready: Promise.resolve({ accountJid: ACCOUNT_JID, name: 'Harness WhatsApp' }),
+      close: async () => {},
+      logout: async () => {},
+    }),
+  });
+  await lidRuntime.start();
+  assert.deepEqual(await lidRuntime.sendConnectionTest('lid probe'), { sent: true });
+  assert.deepEqual(sent.at(-1), [accountLid, { text: 'lid probe' }]);
+  assert.equal(askCount, 0);
+  await runtime.stop();
+  await lidRuntime.stop();
 });
 
 test('WhatsApp controller delegates connection test copy to the current runtime', async (t) => {

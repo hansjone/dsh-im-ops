@@ -3,7 +3,7 @@
  * when Baileys only surfaces opaque @lid identities on the wire.
  */
 
-import { areJidsSameUser, jidDecode } from '@whiskeysockets/baileys';
+import { areJidsSameUser, jidDecode, jidNormalizedUser } from '@whiskeysockets/baileys';
 
 function isLidServer(server) {
   return server === 'lid' || server === 'hosted.lid';
@@ -75,6 +75,56 @@ async function lookupLidForPn(socket, pn) {
     return null;
   }
 }
+
+/**
+ * Prefer the live WhatsApp self-chat JID (LID when available) for outbound
+ * probes. Sending only the stored PN often "succeeds" in Baileys but never
+ * syncs into the phone's Message Yourself thread after LID migration.
+ *
+ * @param {{ socket?: object, accountJid: string, lidPnCache?: Map<string, string> }} options
+ * @returns {Promise<string>}
+ */
+export async function resolveWhatsappSelfChatJid({
+  socket,
+  accountJid,
+  lidPnCache,
+} = {}) {
+  const normalize = (value) => {
+    if (typeof value !== 'string' || !value.trim()) return null;
+    try {
+      return jidNormalizedUser(value.trim()) || value.trim();
+    } catch {
+      return value.trim();
+    }
+  };
+
+  const me = socket?.user;
+  for (const candidate of [me?.lid, me?.id]) {
+    const jid = normalize(candidate);
+    if (jid && isWhatsappLidJid(jid)) return jid;
+  }
+
+  const mapped = await lookupLidForPn(socket, accountJid);
+  const mappedJid = normalize(mapped);
+  if (mappedJid && isWhatsappLidJid(mappedJid)) return mappedJid;
+
+  if (lidPnCache instanceof Map && typeof accountJid === 'string') {
+    for (const [lidUser, pn] of lidPnCache.entries()) {
+      try {
+        if (areJidsSameUser(pn, accountJid) === true && /^\d+$/.test(lidUser)) {
+          return `${lidUser}@lid`;
+        }
+      } catch {
+        // keep scanning
+      }
+    }
+  }
+
+  const fallback = normalize(accountJid);
+  if (!fallback) throw new TypeError('WhatsApp account JID is required');
+  return fallback;
+}
+
 
 /**
  * Collect local-part tokens for the linked bot account (PN and LID).
