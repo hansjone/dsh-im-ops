@@ -9,19 +9,11 @@ import {
 
 import { emptyAccessGrant, ensureGroupBucket, normalizeAccessPhone, phoneFromWhatsappJid, resolveAccessAgentPreset } from '../shared/access-grant.mjs';
 import { splitMessageText } from '../shared/editable-message-stream.mjs';
-import {
-  connectionTestTarget,
-} from '../shared/connection-test.mjs';
 import { t } from '../shared/i18n.mjs';
 import { ImagePromptError } from '../shared/image-prompt.mjs';
 import { trackOutboundArtifactProviderPromise } from '../shared/semantic/artifact.mjs';
 import { createWhatsappBridgeStatus, WhatsappHarnessBridge } from './whatsapp-bridge.mjs';
-import {
-  enrichWhatsappInboundIdentities,
-  resolveWhatsappGroupSubject,
-  resolveWhatsappGroupSubjects,
-  resolveWhatsappSelfChatJid,
-} from './whatsapp-identity.mjs';
+import { enrichWhatsappInboundIdentities, resolveWhatsappGroupSubject, resolveWhatsappGroupSubjects } from './whatsapp-identity.mjs';
 import {
   gateWhatsappInbound,
   loadWhatsappAccessGrant,
@@ -873,10 +865,6 @@ export class WhatsappRuntime {
     return this.stop();
   }
 
-  /**
-   * Channel-direct probe (no Harness / DSH session). Prefer the last bound
-   * private-chat reply target; otherwise Message Yourself via live LID/PN.
-   */
   async sendConnectionTest(text) {
     if (!this.#status.ready || !this.#client) {
       const error = new Error(t('WhatsApp机器人尚未连接'));
@@ -886,32 +874,11 @@ export class WhatsappRuntime {
     if (typeof text !== 'string' || !text.trim()) {
       throw new TypeError('WhatsApp connection test text is required');
     }
-    const target = await this.#connectionTestSendTarget();
-    await this.#client.sendText(target, text);
+    await this.#client.sendText({
+      jid: this.#config.accountJid,
+      selfChat: true,
+    }, text);
     return { sent: true };
-  }
-
-  async #connectionTestSendTarget() {
-    const remembered = connectionTestTarget(this.#state);
-    const rememberedJid = typeof remembered?.jid === 'string' ? remembered.jid.trim() : '';
-    if (rememberedJid) {
-      let selfChat = remembered.selfChat === true;
-      if (!selfChat) {
-        try {
-          selfChat = areJidsSameUser(rememberedJid, this.#config.accountJid) === true;
-        } catch {
-          selfChat = false;
-        }
-      }
-      // Bound chat only — drop quoted/key so this is a fresh probe, not a reply.
-      return { jid: rememberedJid, selfChat };
-    }
-    const jid = await resolveWhatsappSelfChatJid({
-      socket: this.#session?.socket,
-      accountJid: this.#config.accountJid,
-      lidPnCache: this.#lidPnCache,
-    });
-    return { jid, selfChat: true };
   }
 
   /**
