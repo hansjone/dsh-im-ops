@@ -13,6 +13,7 @@ import {
 import { SET_GROUP_SESSION_SCOPE_ENDPOINT, validGroupSessionScopePayload } from '../shared/group-session-scope-rpc.mjs';
 import { SET_CONTEXT_ENHANCEMENT_ENDPOINT, validContextEnhancementPayload } from '../shared/context-enhancement-rpc.mjs';
 import { resolveRpcAuthority } from '../../rpc-authority.mjs';
+import { installConnectionRpcChannel } from '../../connection-rpc-mount.mjs';
 import { publicWorkspaceError, SET_WORKSPACE_ENDPOINT, validWorkspacePayload } from '../shared/workspace-rpc.mjs';
 import { SET_AGENT_PRESET_ENDPOINT, validAgentPresetPayload } from '../shared/agent-preset-rpc.mjs';
 
@@ -282,12 +283,10 @@ export function createWhatsappRpcHandler(controller, { encodeQr = qrDataUrl } = 
 }
 
 export function installWhatsappRpc(ctx, controller, options, authority) {
-  if (!ctx?.connection?.rpc || typeof ctx.connection.rpc.handle !== 'function') {
-    throw new TypeError('DSH Host Connection RPC is required');
-  }
-  return ctx.connection.rpc.handle(
+  resolveRpcAuthority(authority);
+  return installConnectionRpcChannel(
+    ctx,
     WHATSAPP_RPC_CHANNEL,
     createWhatsappRpcHandler(controller, options),
-    { authority: resolveRpcAuthority(authority) },
   );
 }

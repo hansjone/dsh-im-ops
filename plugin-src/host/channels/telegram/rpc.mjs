@@ -3,6 +3,7 @@ import {
   createTokenBotRpcHandler,
 } from '../shared/rpc.mjs';
 import { resolveRpcAuthority } from '../../rpc-authority.mjs';
+import { installConnectionRpcChannel } from '../../connection-rpc-mount.mjs';
 
 export const TELEGRAM_RPC_CHANNEL = '/telegram';
 export const TELEGRAM_ENDPOINTS = TOKEN_BOT_ENDPOINTS;
@@ -13,12 +14,10 @@ export function createTelegramRpcHandler(controller) {
 }
 
 export function installTelegramRpc(ctx, controller, authority) {
-  if (!ctx?.connection?.rpc || typeof ctx.connection.rpc.handle !== 'function') {
-    throw new TypeError('DSH Host Connection RPC is required');
-  }
-  return ctx.connection.rpc.handle(
+  resolveRpcAuthority(authority);
+  return installConnectionRpcChannel(
+    ctx,
     TELEGRAM_RPC_CHANNEL,
     createTelegramRpcHandler(controller),
-    { authority: resolveRpcAuthority(authority) },
   );
 }

@@ -1,5 +1,7 @@
 import { createUpdateRuntime } from './update-runtime.mjs';
 import { createUpdateService } from './update-service.mjs';
+import { installConnectionRpcChannel } from './connection-rpc-mount.mjs';
+import { resolveRpcAuthority } from './rpc-authority.mjs';
 
 export const UPDATE_RPC_CHANNEL = '/dsh-im';
 export const UPDATE_ENDPOINTS = Object.freeze(['update.status', 'update.check', 'update.install']);
@@ -42,9 +44,12 @@ export function createUpdateRpcHandler(service) {
 export function installUpdateRpc(ctx, options = {}) {
   const runtime = options.runtime ?? createUpdateRuntime({ ctx, moduleUrl: import.meta.url });
   const service = options.service ?? createUpdateService({ runtime });
-  const dispose = ctx.connection.rpc.handle(UPDATE_RPC_CHANNEL, createUpdateRpcHandler(service), {
-    authority: 'loopback',
-  });
+  resolveRpcAuthority('loopback');
+  const dispose = installConnectionRpcChannel(
+    ctx,
+    UPDATE_RPC_CHANNEL,
+    createUpdateRpcHandler(service),
+  );
   ctx.effect(() => () => service.close(), 'dsh-im: close update installer');
   return dispose;
 }

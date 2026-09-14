@@ -1,4 +1,5 @@
 import { resolveRpcAuthority } from './rpc-authority.mjs';
+import { installConnectionRpcChannel } from './connection-rpc-mount.mjs';
 
 export const DELIVERY_RPC_CHANNEL = '/dsh-im-delivery';
 export const DELIVERY_TEST_MESSAGE = 'DSH-IM 主动投递测试成功。';
@@ -147,12 +148,10 @@ export function createDeliveryRpcHandler(service) {
 }
 
 export function installDeliveryRpc(ctx, service, { authority } = {}) {
-  if (!ctx?.connection?.rpc || typeof ctx.connection.rpc.handle !== 'function') {
-    throw new TypeError('DSH Host Connection RPC is required');
-  }
-  return ctx.connection.rpc.handle(
+  resolveRpcAuthority(authority);
+  return installConnectionRpcChannel(
+    ctx,
     DELIVERY_RPC_CHANNEL,
     createDeliveryRpcHandler(service),
-    { authority: resolveRpcAuthority(authority) },
   );
 }

@@ -2,6 +2,7 @@ import { SET_CONTEXT_ENHANCEMENT_ENDPOINT, validContextEnhancementPayload } from
 import { SET_ACCESS_POLICY_ENDPOINT, validAccessPolicyPayload } from '../shared/access-policy-rpc.mjs';
 import { SET_GROUP_SESSION_SCOPE_ENDPOINT, validGroupSessionScopePayload } from '../shared/group-session-scope-rpc.mjs';
 import { resolveRpcAuthority } from '../../rpc-authority.mjs';
+import { installConnectionRpcChannel } from '../../connection-rpc-mount.mjs';
 import { publicConnectionTestResult } from '../../../../src/channels/shared/connection-test.mjs';
 import {
   publicWorkspaceError,
@@ -201,12 +202,10 @@ export function createSlackRpcHandler(controller) {
 }
 
 export function installSlackRpc(ctx, controller, authority) {
-  if (!ctx?.connection?.rpc || typeof ctx.connection.rpc.handle !== 'function') {
-    throw new TypeError('DSH Host Connection RPC is required');
-  }
-  return ctx.connection.rpc.handle(
+  resolveRpcAuthority(authority);
+  return installConnectionRpcChannel(
+    ctx,
     SLACK_RPC_CHANNEL,
     createSlackRpcHandler(controller),
-    { authority: resolveRpcAuthority(authority) },
   );
 }

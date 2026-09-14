@@ -1,6 +1,7 @@
 import { SET_CONTEXT_ENHANCEMENT_ENDPOINT, validContextEnhancementPayload } from './context-enhancement-rpc.mjs';
 import { SET_ACCESS_POLICY_ENDPOINT, validAccessPolicyPayload } from './access-policy-rpc.mjs';
 import { SET_GROUP_SESSION_SCOPE_ENDPOINT, validGroupSessionScopePayload } from './group-session-scope-rpc.mjs';
+import { installConnectionRpcChannel } from '../../connection-rpc-mount.mjs';
 import { resolveRpcAuthority } from '../../rpc-authority.mjs';
 import { publicConnectionTestResult } from '../../../../src/channels/shared/connection-test.mjs';
 import {
@@ -197,12 +198,10 @@ export function createTokenBotRpcHandler(controller, { channel }) {
 }
 
 export function installTokenBotRpc(ctx, controller, { channel, rpcChannel, authority }) {
-  if (!ctx?.connection?.rpc || typeof ctx.connection.rpc.handle !== 'function') {
-    throw new TypeError('DSH Host Connection RPC is required');
-  }
-  return ctx.connection.rpc.handle(
+  resolveRpcAuthority(authority);
+  return installConnectionRpcChannel(
+    ctx,
     rpcChannel,
     createTokenBotRpcHandler(controller, { channel }),
-    { authority: resolveRpcAuthority(authority) },
   );
 }

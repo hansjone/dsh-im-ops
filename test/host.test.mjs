@@ -43,6 +43,7 @@ test('Host composes nine IM channels and the AI Office connector inside one plug
     'connection',
     'credentials',
     'typertGateway',
+    'webServer',
   ]);
   assert.deepEqual(calls, [
     ['feishu', ctx, { ...config.feishu, rpcAuthority: 'trusted-host', deliveryService }],
@@ -83,7 +84,10 @@ test('Host provides #65 and installs #84 with the same delivery service', async 
     installDeliveryHttp: (...args) => http.push(args),
   });
   const ctx = {
-    connection: { rpc: {} },
+    connection: {
+      rpc: {},
+      requestRejection() {},
+    },
     webServer: { register() {} },
     effect() {},
     provide: (...args) => provided.push(args),
@@ -109,9 +113,11 @@ test('#65 activates a real Cordis consumer without crossing the Connection RPC',
       handle: () => async () => {},
       call: (...args) => rpcCalls.push(args),
     },
+    requestRejection() {},
   });
   ctx.provide('credentials', {});
   ctx.provide('typertGateway', { stream() {} });
+  ctx.provide('webServer', { register() { return () => {}; } });
   ctx.provide('sessionController', {});
   ctx.provide('workspaceController', {});
 
@@ -131,6 +137,7 @@ test('#65 activates a real Cordis consumer without crossing the Connection RPC',
     createDeliveryService: () => deliveryService,
     installUpdateRpc: () => async () => {},
     installDeliveryRpc: () => async () => {},
+    installDeliveryHttp: () => async () => {},
   });
 
   const host = ctx.plugin(createImHostPlugin(internals));
@@ -153,34 +160,41 @@ test('#65 activates a real Cordis consumer without crossing the Connection RPC',
   assert.equal(rpcCalls.length, 0);
 });
 
-test('Host waits for apiProxy on legacy Harness and Controllers on modern Harness', async () => {
-  for (const [modern, expected] of [
-    [false, ['apiProxy']],
-    [true, ['sessionController', 'workspaceController']],
-  ]) {
-    const injections = [];
-    const calls = [];
-    const plugin = createImHostPlugin(Object.fromEntries(CHANNELS.map(([channel, applyName]) => [
+test('Host activates channels on its own fiber (injects webServer) so RPC routes can mount', async () => {
+  const calls = [];
+  const deliveryHttp = [];
+  const plugin = createImHostPlugin({
+    ...Object.fromEntries(CHANNELS.map(([channel, applyName]) => [
       applyName,
       async () => calls.push(channel),
-    ])));
-    const ctx = {
-      credentials: {},
-      typertGateway: modern ? { stream() {} } : { invoke() {} },
-      inject(dependencies, callback) {
-        injections.push(dependencies);
-        if (dependencies.includes('tools') || dependencies.includes('webServer')) return {};
-        return {
-          then(resolve, reject) {
-            Promise.resolve(callback(ctx)).then(resolve, reject);
-          },
-        };
-      },
-    };
-    await plugin.apply(ctx, {});
-    assert.deepEqual(injections[0], expected);
-    assert.deepEqual(calls, CHANNELS.map(([channel]) => channel));
-  }
+    ])),
+    installDeliveryHttp: (ctx) => deliveryHttp.push(ctx),
+    installUpdateRpc: () => async () => {},
+    installDeliveryRpc: () => async () => {},
+  });
+  const ctx = {
+    credentials: {},
+    typertGateway: { stream() {}, invoke() {} },
+    connection: {
+      rpc: { handle: () => async () => {} },
+      requestRejection() {},
+    },
+    webServer: { register() {} },
+    effect() {},
+    inject(dependencies, callback) {
+      if (dependencies.includes('tools') || dependencies.includes('systemPrompt')) return {};
+      return callback(ctx);
+    },
+  };
+  await plugin.apply(ctx, {});
+  assert.deepEqual(plugin.inject, [
+    'connection',
+    'credentials',
+    'typertGateway',
+    'webServer',
+  ]);
+  assert.equal(deliveryHttp.length, 1);
+  assert.deepEqual(calls, CHANNELS.map(([channel]) => channel));
 });
 
 const CHANNELS = [

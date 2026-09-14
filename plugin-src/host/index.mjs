@@ -23,6 +23,8 @@ export const inject = [
   'connection',
   'credentials',
   'typertGateway',
+  // Plugin-side RPC mounts use ctx.webServer.register (see connection-rpc-mount.mjs).
+  'webServer',
 ];
 
 function channelConfig(config, name, deliveryService) {
@@ -188,21 +190,11 @@ export function createImHostPlugin(internals = {}) {
           },
         }));
       }
-      const activate = async (readyCtx) => {
-        await activateChannels(readyCtx, config, deliveryService);
-      };
-      if (typeof ctx?.inject === 'function') {
-        const modern = typeof ctx?.typertGateway?.stream === 'function';
-        await ctx.inject(
-          modern ? ['sessionController', 'workspaceController'] : ['apiProxy'],
-          activate,
-        );
-        ctx.inject(['webServer'], (httpCtx) => {
-          startDeliveryHttp(httpCtx, deliveryService);
-        });
-        return;
-      }
-      await activate(ctx);
+
+      // Activate on this fiber (already injects webServer). Do not defer to a
+      // sessionController child fiber — that fiber cannot read webServer, so
+      // every channel rpc.handle throws and the UI sees HTTP 405.
+      await activateChannels(ctx, config, deliveryService);
       if (ctx?.webServer?.register && typeof ctx?.effect === 'function') {
         startDeliveryHttp(ctx, deliveryService);
       }

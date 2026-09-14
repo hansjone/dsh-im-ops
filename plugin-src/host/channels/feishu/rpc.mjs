@@ -7,6 +7,7 @@ import { publicConnectionTestResult } from '../../../../src/channels/shared/conn
 import { publicMessageFailure } from '../../../../src/channels/shared/message-failure.mjs';
 import { normalizeAccessPolicy } from '../../../../src/channels/shared/access-policy.mjs';
 import { resolveRpcAuthority } from '../../rpc-authority.mjs';
+import { installConnectionRpcChannel } from '../../connection-rpc-mount.mjs';
 import { publicWorkspaceError, validWorkspacePayload } from '../shared/workspace-rpc.mjs';
 import { validAgentPresetPayload } from '../shared/agent-preset-rpc.mjs';
 import { validContextEnhancementPayload } from '../shared/context-enhancement-rpc.mjs';
@@ -738,12 +739,10 @@ export function createFeishuRpcHandler(controller, { encodeQr = qrCodeDataUrl } 
 
 /** Register the `/feishu` logical channel with its configured browser authority. */
 export function installFeishuRpc(ctx, controller, options, authority) {
-  if (!ctx?.connection?.rpc || typeof ctx.connection.rpc.handle !== 'function') {
-    throw new TypeError('DSH Host Connection RPC is required');
-  }
-  return ctx.connection.rpc.handle(
+  resolveRpcAuthority(authority);
+  return installConnectionRpcChannel(
+    ctx,
     FEISHU_RPC_CHANNEL,
     createFeishuRpcHandler(controller, options),
-    { authority: resolveRpcAuthority(authority) },
   );
 }
