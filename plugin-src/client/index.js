@@ -64,6 +64,18 @@ export const name = 'im-settings';
 export const inject = ['slots', 'connection', 'locale', 'workspaces'];
 export const IM_PLUGIN_VERSION = manifest.version;
 
+/** Push the active DSH UI locale to the Host so bot chat copy stays aligned. */
+function syncHostChatLanguage(ctx, language) {
+  if (typeof language !== 'string' || !language.trim()) return;
+  void ctx.connection.rpc.call(
+    UPDATE_RPC_CHANNEL,
+    'host.language.set',
+    { language },
+  ).catch(() => {
+    // Host may be offline or on an older build without the endpoint.
+  });
+}
+
 function callWorkspaceDirectoryApi(ctx, method, ...args) {
   // Current DSH owns directory operations on uiWorkspace; legacy Hosts keep them on workspaces.
   const uiWorkspace = typeof ctx.get === 'function' ? ctx.get('uiWorkspace') : undefined;
@@ -331,6 +343,13 @@ export function apply(ctx) {
   );
   const t = ctx.locale.bind(IM_LOCALE_NAMESPACE);
   setImTranslator(t);
+
+  ctx.effect(() => {
+    syncHostChatLanguage(ctx, ctx.locale.getLocale().active);
+    return ctx.on('locale/change', (snapshot) => {
+      syncHostChatLanguage(ctx, snapshot?.active);
+    });
+  }, 'im-settings: sync host chat language with DSH locale');
 
   ctx.effect(() => {
     const disposers = [

@@ -22,6 +22,7 @@ import {
   upsertAccessContact,
 } from '../shared/access-grant.mjs';
 import { isSharedLocalCommand } from '../shared/command-permission.mjs';
+import { t } from '../shared/i18n.mjs';
 import { isWhatsappLidJid } from './whatsapp-identity.mjs';
 
 /**
@@ -178,17 +179,17 @@ export async function tryHandleWhatsappApprovalReply({
     }
     await sendText(
       { jid: message.replyTarget?.jid ?? `${phone}@s.whatsapp.net` },
-      intent === 'approve' ? ACCESS_GRANT_COPY.adminApproved : ACCESS_GRANT_COPY.adminDenied,
+      t(intent === 'approve' ? ACCESS_GRANT_COPY.adminApproved : ACCESS_GRANT_COPY.adminDenied),
     );
     const requesterJid = resolved.phone
       ? `${resolved.phone}@s.whatsapp.net`
       : (resolved.lid ?? null);
     if (requesterJid) {
-      const body = intent === 'approve'
+      const body = t(intent === 'approve'
         ? (resolved.kind === 'group'
           ? ACCESS_GRANT_COPY.approvedGroup
           : ACCESS_GRANT_COPY.approvedDirect)
-        : ACCESS_GRANT_COPY.denied;
+        : ACCESS_GRANT_COPY.denied);
       try {
         await sendText({ jid: requesterJid }, body);
       } catch {
@@ -201,7 +202,7 @@ export async function tryHandleWhatsappApprovalReply({
       || error?.code === 'pending-unresolved' || error?.code === 'pending-not-found') {
       await sendText(
         { jid: message.replyTarget?.jid ?? `${phone}@s.whatsapp.net` },
-        error.message || '无法处理该审批。',
+        t(error.message || ACCESS_GRANT_COPY.processFailed),
       );
       return true;
     }
@@ -322,11 +323,11 @@ export async function gateWhatsappInbound({
     await workspaces.setAccessGrant(botId, current);
   }
 
-  const ack = !phone
+  const ack = t(!phone
     ? ACCESS_GRANT_COPY.pendingUnresolved
     : (scene === 'group'
       ? ACCESS_GRANT_COPY.pendingAckGroup
-      : ACCESS_GRANT_COPY.pendingAckDirect);
+      : ACCESS_GRANT_COPY.pendingAckDirect));
   try {
     await sendText(message.replyTarget, ack);
   } catch {
@@ -335,7 +336,7 @@ export async function gateWhatsappInbound({
 
   if (created) {
     const admins = approverPhonesForPending(current, pending);
-    const body = formatPendingNotifyBody(pending);
+    const body = formatPendingNotifyBody(pending, t);
     const refs = [];
     for (const adminPhone of admins) {
       // Never DM the linked bot account as if it were a peer when it is the only self-chat path.

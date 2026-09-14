@@ -197,7 +197,7 @@ See the [Proactive Delivery Guide](PROACTIVE_DELIVERY.en.md) ([简体中文](PRO
 
 - Registers one top-level **IM Bot** settings page containing nine IM channels and one AI Office Connector.
 - Maintains the Host, client, and runtime sources for all nine channels and the Office Connector in this repository without external standalone plugins.
-- Follows the DeepSeek Harness language preference and switches the settings UI live between Chinese and English. Bot chat messages follow the Host's `language` config (Chinese by default; `en` switches them to English), with Chinese always as the fallback so untranslated text is sent verbatim.
+- Follows the DeepSeek Harness language preference and switches the settings UI live between Chinese and English. Bot chat messages follow the same Harness system language (synced when the settings UI loads or the language changes), with Chinese always as the fallback so untranslated text is sent verbatim.
 - Uses logos for WeChat, Feishu, DingTalk, WeCom, QQ, Slack, Telegram, Discord, WhatsApp, and AI Office navigation without enable/disable switches.
 - Keeps RPC endpoints, credentials, connection supervision, and session mappings isolated by IM channel; the Office Connector separately owns Device credentials, Job leases, approval waits, and concurrency limits.
 - Returns only QR codes, the public Slack Manifest, redacted status data, and access modes or allowlist identifiers explicitly saved for the current Telegram or WhatsApp bot. Manually entered secrets and Tokens travel one way to the local Host; no RPC response returns App Secrets, `bot_token`, DingTalk `client_secret`, WeCom Secrets, QQ `app_secret`, Slack Bot/App Tokens, Telegram/Discord Bot Tokens, WhatsApp linked-device keys, AI Office Device Tokens, or other raw user identifiers observed from platform messages.
@@ -224,7 +224,9 @@ IM management RPCs accept loopback browsers by default. When a Web profile is de
 
 ### Bot chat message language
 
-Bot chat messages are in Chinese by default. To switch them to English, set `language: en` in the plugin config (also accepts `en-US` or `english`), or set the `DSH_IM_LANGUAGE=en` environment variable:
+Bot chat messages follow the **DeepSeek Harness system language** (Settings → Language): Chinese UI → Chinese bot copy, English UI → English bot copy. Opening the settings UI or switching language syncs the Host automatically.
+
+Before any UI connects (or in headless runs), you can still set a bootstrap default via plugin config or env:
 
 ```yaml
 - id: xmanrui-dsh-im
@@ -232,7 +234,7 @@ Bot chat messages are in Chinese by default. To switch them to English, set `lan
     language: en
 ```
 
-Without a setting, Chinese is used. Chinese is always the fallback language — any text missing from the English dictionary is sent verbatim in Chinese, so this feature never changes the behavior of existing Chinese users.
+or `DSH_IM_LANGUAGE=en`. After the UI syncs, the active Harness language wins. Chinese is always the dictionary fallback — any text missing from the English dictionary is sent verbatim in Chinese.
 
 ---
 

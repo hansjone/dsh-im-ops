@@ -200,7 +200,7 @@ dsh web
 
 - Harness 一级设置菜单中只注册一个「IM机器人」设置页，其中包含九个 IM 渠道和一个 AI Office Connector；
 - 九个渠道及 Office Connector 的 Host、客户端与运行时源码都在本仓库维护，不依赖外部独立插件；
-- 设置页跟随 DeepSeek Harness 的语言选择，在中文和 English 之间即时切换；机器人发出的聊天消息跟随 Host 的 `language` 配置（默认中文；设为 `en` 即为英文），中文始终为兜底，未收录的文案原样输出；
+- 设置页跟随 DeepSeek Harness 的语言选择，在中文和 English 之间即时切换；机器人发出的聊天消息同样跟随 Harness 系统语言（打开设置页或切换语言时同步到 Host），中文始终为兜底，未收录的文案原样输出；
 - 左侧使用 Logo 切换微信、飞书、钉钉、企业微信、QQ、Slack、Telegram、Discord、WhatsApp 和 AI Office，不使用启用/停用开关；
 - 九个 IM 渠道保持独立的 RPC、凭据、连接监督和会话映射；Office Connector 另行维护设备凭据、Job 租约、审批等待与并发上限；
 - 浏览器只获得二维码、Manifest、脱敏状态，以及用户为当前 Telegram 或 WhatsApp 机器人主动保存的访问模式和白名单标识；手动输入的 Secret 或 Token 仅单向提交给本机 Host，任何 RPC 响应都不会返回 App Secret、`bot_token`、钉钉 `client_secret`、企业微信 Secret、QQ `app_secret`、Slack Bot/App Token、Telegram/Discord Bot Token、WhatsApp 关联设备密钥、AI Office Device Token，或从平台消息中观察到的其他原始用户标识。
@@ -227,7 +227,9 @@ IM 管理 RPC 默认仅接受回环浏览器。如果 Web profile 在受信任�
 
 ### 聊天消息语言
 
-机器人发出的聊天消息默认使用中文。要切换为英文，在插件配置中设置 `language: en`（也接受 `en-US`、`english`），或设置环境变量 `DSH_IM_LANGUAGE=en`：
+机器人发出的聊天消息默认跟随 **DeepSeek Harness 的系统语言**（设置 → 语言）：界面为中文时发中文，为 English 时发英文。打开设置页或切换语言时会自动同步到 Host。
+
+在尚未打开过 UI、或纯无界面运行时，仍可用插件配置 / 环境变量作为启动默认值：
 
 ```yaml
 - id: xmanrui-dsh-im
@@ -235,7 +237,7 @@ IM 管理 RPC 默认仅接受回环浏览器。如果 Web profile 在受信任�
     language: en
 ```
 
-未设置时保持中文；中文始终是兜底语言，任何未收录到英文词典的文案都会原样以中文输出，因此该功能不会改变现有中文用户的行为。
+或 `DSH_IM_LANGUAGE=en`。UI 连上并同步后，以 Harness 当前语言为准。中文始终是词典兜底：未收录的英文文案会原样以中文输出。
 
 ---
 

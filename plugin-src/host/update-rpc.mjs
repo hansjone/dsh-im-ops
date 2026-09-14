@@ -1,3 +1,4 @@
+import { getImHostLanguage, setImHostLanguage } from '../../src/channels/shared/i18n.mjs';
 import { createUpdateRuntime } from './update-runtime.mjs';
 import { createUpdateService } from './update-service.mjs';
 import { installConnectionRpcChannel } from './connection-rpc-mount.mjs';
@@ -5,8 +6,20 @@ import { resolveRpcAuthority } from './rpc-authority.mjs';
 
 export const UPDATE_RPC_CHANNEL = '/dsh-im';
 export const UPDATE_ENDPOINTS = Object.freeze(['update.status', 'update.check', 'update.install']);
+export const HOST_LANGUAGE_SET_ENDPOINT = 'host.language.set';
+
+function validLanguagePayload(payload) {
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) return false;
+  const keys = Object.keys(payload);
+  return keys.length === 1
+    && keys[0] === 'language'
+    && typeof payload.language === 'string'
+    && payload.language.trim().length > 0
+    && payload.language.length <= 32;
+}
 
 function validPayload(endpoint, payload) {
+  if (endpoint === HOST_LANGUAGE_SET_ENDPOINT) return validLanguagePayload(payload);
   if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) return false;
   const keys = Object.keys(payload);
   if (endpoint !== 'update.install') return keys.length === 0;
@@ -25,8 +38,13 @@ const PUBLIC_ERRORS = new Set([
 
 export function createUpdateRpcHandler(service) {
   return async (endpoint, payload, signal) => {
-    if (!UPDATE_ENDPOINTS.includes(endpoint) || !validPayload(endpoint, payload)) {
+    if (endpoint !== HOST_LANGUAGE_SET_ENDPOINT && !UPDATE_ENDPOINTS.includes(endpoint)
+      || !validPayload(endpoint, payload)) {
       return { ok: false, error: { code: 'bad-request', message: 'Invalid update request.' } };
+    }
+    if (endpoint === HOST_LANGUAGE_SET_ENDPOINT) {
+      setImHostLanguage(payload.language);
+      return { ok: true, value: { language: getImHostLanguage() } };
     }
     if (signal?.aborted) return { ok: false, error: { code: 'cancelled', message: 'Request cancelled.' } };
     try {

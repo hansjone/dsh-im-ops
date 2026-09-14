@@ -744,7 +744,10 @@ export function parsePendingIdFromNotifyText(text) {
   return match?.[1] ?? null;
 }
 
-/** Notify / ack copy (zh). */
+/**
+ * Notify / ack copy keys (Chinese source literals for host `t()`).
+ * Callers must pass through `t()` after `setImHostLanguage` — do not send raw.
+ */
 export const ACCESS_GRANT_COPY = Object.freeze({
   pendingAckDirect: '已提交私聊访问申请，请等待全局管理员审批。',
   pendingAckGroup: '已提交本群访问申请，请等待管理员审批。',
@@ -755,26 +758,38 @@ export const ACCESS_GRANT_COPY = Object.freeze({
   denied: '访问申请未通过。',
   adminApproved: '已批准该访问申请。',
   adminDenied: '已拒绝该访问申请。',
+  processFailed: '无法处理该审批。',
 });
+
+/** Identity translator that still fills `{name}` placeholders (zh default). */
+function fillPlaceholders(text, params) {
+  if (typeof text !== 'string' || params == null) return text;
+  return text.replace(/\{(\w+)\}/g, (match, name) =>
+    Object.hasOwn(params, name) ? String(params[name]) : match);
+}
 
 /**
  * @param {object} pending
+ * @param {(text: string, params?: Record<string, unknown>) => string} [translate]
  * @returns {string}
  */
-export function formatPendingNotifyBody(pending) {
+export function formatPendingNotifyBody(pending, translate = fillPlaceholders) {
   const scene = pending.kind === 'group'
-    ? `群聊 ${pending.groupJid ?? ''}`
-    : '私聊';
+    ? translate('群聊 {jid}', { jid: pending.groupJid ?? '' })
+    : translate('私聊');
+  const unknown = translate('未知');
   const who = pending.pushName
-    ? `${pending.pushName} (${pending.phone || pending.lid || '未知'})`
-    : (pending.phone || pending.lid || '未知');
-  const text = pending.requestText ? `\n原文：${pending.requestText.slice(0, 200)}` : '';
+    ? `${pending.pushName} (${pending.phone || pending.lid || unknown})`
+    : (pending.phone || pending.lid || unknown);
+  const text = pending.requestText
+    ? `\n${translate('原文：{text}', { text: pending.requestText.slice(0, 200) })}`
+    : '';
   return [
-    ACCESS_GRANT_COPY.notifyTitle,
-    `场景：${scene}`,
-    `申请人：${who}`,
-    `请求编号：${pending.id}`,
-    '请引用本条消息回复「同意」或「拒绝」。',
+    translate(ACCESS_GRANT_COPY.notifyTitle),
+    translate('场景：{scene}', { scene }),
+    translate('申请人：{who}', { who }),
+    translate('请求编号：{id}', { id: pending.id }),
+    translate('请引用本条消息回复「同意」或「拒绝」。'),
     text,
   ].filter(Boolean).join('\n');
 }

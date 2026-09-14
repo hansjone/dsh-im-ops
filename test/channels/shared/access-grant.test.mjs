@@ -191,7 +191,32 @@ test('quote approval helpers parse intent, pending id, and notify refs', () => {
     pushName: 'Carol',
     requestText: 'hi',
   });
+  assert.match(body, /请求编号：p_abc123/);
   assert.equal(parsePendingIdFromNotifyText(body), 'p_abc123');
+  const enBody = formatPendingNotifyBody({
+    id: 'p_abc123',
+    kind: 'direct',
+    phone: '8618888888888',
+    pushName: 'Carol',
+    requestText: 'hi',
+  }, (text, params) => {
+    const map = {
+      '[dsh-im-ops] 访问申请': '[dsh-im-ops] Access request',
+      '私聊': 'Direct chat',
+      '场景：{scene}': 'Scene: {scene}',
+      '申请人：{who}': 'Requester: {who}',
+      '请求编号：{id}': 'Request: {id}',
+      '原文：{text}': 'Original message: {text}',
+      '请引用本条消息回复「同意」或「拒绝」。': 'Quote this message…',
+      '未知': 'unknown',
+    };
+    const translated = map[text] ?? text;
+    if (params == null) return translated;
+    return translated.replace(/\{(\w+)\}/g, (match, name) =>
+      Object.hasOwn(params, name) ? String(params[name]) : match);
+  });
+  assert.match(enBody, /Request: p_abc123/);
+  assert.equal(parsePendingIdFromNotifyText(enBody), 'p_abc123');
   const withRef = {
     ...grant(),
     pending: [{

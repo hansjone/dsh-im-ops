@@ -6,6 +6,11 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ## [Unreleased]
 
+### Changed / 变更
+
+- 机器人聊天文案（含 WhatsApp 访问审批）跟随 DeepSeek Harness 系统语言：打开 UI 或切换语言时通过 `host.language.set` 同步到 Host；无界面时仍可用 `language` / `DSH_IM_LANGUAGE` 作为启动默认值。
+  Bot chat copy (including WhatsApp access-grant approvals) now follows the DeepSeek Harness system language: opening the UI or switching language syncs the Host via `host.language.set`. Headless runs can still bootstrap with `language` / `DSH_IM_LANGUAGE`.
+
 ## [4.9.1] - 2026-09-04
 
 ### Fixed / 修复
