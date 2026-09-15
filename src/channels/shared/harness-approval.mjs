@@ -9,11 +9,21 @@ const APPROVAL_REPLIES = new Map([
   ['no', 'rejected'],
 ]);
 
-const APPROVAL_PROMPT = '请精准回复「批准」或「拒绝」（也支持：同意 / 不同意 / yes / no）。';
+const APPROVAL_PROMPT = '请在本聊天精准回复「批准」或「拒绝」（也支持：同意 / 不同意 / yes / no）。勿到 DeepSeek Harness 网页里点，否则无人看会一直卡住。';
 const APPROVAL_AFTER_QUESTION_PROMPT = '请先完成当前问题，再精准回复「批准」或「拒绝」。';
 const APPROVAL_RESOLVED_TEXT = '该审批已处理，无需再次回复。';
+const APPROVAL_TIMEOUT_TEXT = '审批等待超时，已自动拒绝此次操作。请重新发送问题，或调整工具审批策略后重试。';
 const RESOLVED_ROUTE_TTL_MS = 5 * 60_000;
 const MAX_RESOLVED_ROUTES = 2_048;
+/** Default 5 minutes; set DSH_IM_INTERACTION_TIMEOUT_MS=0 to disable. */
+const DEFAULT_INTERACTION_TIMEOUT_MS = 5 * 60_000;
+
+function interactionTimeoutMs(value = process.env.DSH_IM_INTERACTION_TIMEOUT_MS) {
+  if (value === undefined || value === null || value === '') return DEFAULT_INTERACTION_TIMEOUT_MS;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_INTERACTION_TIMEOUT_MS;
+  return parsed === 0 ? 0 : Math.max(5_000, Math.floor(parsed));
+}
 
 function cleanText(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -103,13 +113,19 @@ function approvalOutcomeText(outcome) {
 export class HarnessApprovalQueue {
   #label;
   #logger;
+  #timeoutMs;
   #byId = new Map();
   #routes = new Map();
   #resolvedRoutes = new Map();
 
-  constructor({ label = 'IM', logger = console } = {}) {
+  constructor({
+    label = 'IM',
+    logger = console,
+    timeoutMs = interactionTimeoutMs(),
+  } = {}) {
     this.#label = label;
     this.#logger = logger;
+    this.#timeoutMs = interactionTimeoutMs(timeoutMs);
   }
 
   hasPending(key) {
@@ -225,7 +241,13 @@ export class HarnessApprovalQueue {
     }
 
     if (interaction.recovered === true) {
-      await this.#rejectInteraction(interaction, payload);
+      const rejected = await this.#rejectInteraction(interaction, payload);
+      const send = context?.send;
+      if (rejected && typeof send === 'function') {
+        await send(t(
+          '检测到遗留的工具审批请求，已在聊天侧自动拒绝以免任务一直卡住。请重新发送你的问题。',
+        )).catch(() => undefined);
+      }
       return true;
     }
 
@@ -283,11 +305,13 @@ export class HarnessApprovalQueue {
       closedOutcome: null,
       resolutionNotified: false,
       activationTask: null,
+      timeoutTimer: null,
     };
     this.#byId.set(approvalId, pending);
     const route = this.#routes.get(key) ?? { items: [] };
     route.items.push(pending);
     this.#routes.set(key, route);
+    this.#armTimeout(pending);
     if (route.items[0] === pending) await this.#present(pending);
     return true;
   }
@@ -456,6 +480,7 @@ export class HarnessApprovalQueue {
   #remove(pending) {
     if (pending.inactive) return null;
     pending.inactive = true;
+    this.#clearTimeout(pending);
     this.#rememberResolvedRoute(pending.key);
     this.#byId.delete(pending.approvalId);
     const route = this.#routes.get(pending.key);
@@ -468,6 +493,36 @@ export class HarnessApprovalQueue {
       return null;
     }
     return wasCurrent ? route.items[0] : null;
+  }
+
+  #armTimeout(pending) {
+    this.#clearTimeout(pending);
+    if (!(this.#timeoutMs > 0)) return;
+    pending.timeoutTimer = setTimeout(() => {
+      pending.timeoutTimer = null;
+      if (pending.inactive || pending.submitting || pending.resolving) return;
+      this.#logger.warn?.(
+        `[dsh-im:${this.#label}] approval ${pending.approvalId} timed out after ${this.#timeoutMs}ms; auto-rejecting`,
+      );
+      void (async () => {
+        pending.resolutionNotified = true;
+        await pending.send(t(APPROVAL_TIMEOUT_TEXT)).catch(() => undefined);
+        if (pending.inactive || pending.submitting || pending.resolving) return;
+        await this.#submit(pending, 'rejected');
+      })().catch((error) => {
+        this.#logger.error?.(
+          `[dsh-im:${this.#label}] failed to auto-reject a timed-out approval:`,
+          error,
+        );
+      });
+    }, this.#timeoutMs);
+    pending.timeoutTimer.unref?.();
+  }
+
+  #clearTimeout(pending) {
+    if (!pending?.timeoutTimer) return;
+    clearTimeout(pending.timeoutTimer);
+    pending.timeoutTimer = null;
   }
 
   #rememberResolvedRoute(key) {

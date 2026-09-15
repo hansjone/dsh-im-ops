@@ -473,6 +473,7 @@ class ModernHarnessApi {
     const claimed = new Set([...this.#pendingApprovals.values()].map((entry) => entry.approvalId));
     const decided = new Set();
     let approvalId;
+    let fallbackId;
     for (let index = owner.events.length - 1; index >= 0; index -= 1) {
       const event = owner.events[index];
       if (event.type === 'approval/decided') {
@@ -480,11 +481,20 @@ class ModernHarnessApi {
       } else if (event.type === 'approval/asked') {
         const id = event.data?.id;
         if (!id || decided.has(id) || claimed.has(id)) continue;
-        if ((request.callId ?? null) !== (event.data?.callId ?? null)) continue;
-        approvalId = id;
-        break;
+        // Prefer an exact callId match; keep the newest unmatched ask as a
+        // fallback so a callId shape drift cannot silently hand the prompt to
+        // DSH Web while the originating IM turn is still waiting.
+        if ((request.callId ?? null) === (event.data?.callId ?? null)) {
+          approvalId = id;
+          break;
+        }
+        if (fallbackId === undefined
+          && (request.toolName === undefined || request.toolName === event.data?.toolName)) {
+          fallbackId = id;
+        }
       }
     }
+    approvalId ??= fallbackId;
     if (approvalId === undefined) return next();
     return new Promise((resolve) => {
       const pending = {

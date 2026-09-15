@@ -1,4 +1,9 @@
 import { normalizeAgentPresetCatalog, normalizeAgentPresetId, SET_AGENT_PRESET_ENDPOINT } from '../../agent-preset.js';
+import {
+  normalizeDefaultModelSelection,
+  normalizeHostModelCatalog,
+  SET_DEFAULT_MODEL_ENDPOINT,
+} from '../../default-model.js';
 import { normalizeLastMessageError } from '../../last-message-error.js';
 import { normalizeAccessGrant } from '../../../../src/channels/shared/access-grant.mjs';
 import { normalizeAccessPolicy } from '../../../../src/channels/shared/access-policy.mjs';
@@ -21,6 +26,7 @@ export const WHATSAPP_ENDPOINTS = Object.freeze({
   setGroupSessionScope: 'bot.group-session-scope.set',
   setWorkspace: 'bot.workspace.set',
   setAgentPreset: SET_AGENT_PRESET_ENDPOINT,
+  setDefaultModel: SET_DEFAULT_MODEL_ENDPOINT,
   setContextEnhancement: 'bot.context-enhancement.set',
   resolveChannelPeer: 'bot.session.channel-peer',
 });
@@ -98,6 +104,7 @@ function normalizeBot(value) {
     state: connected ? 'connected' : state,
     workspace: text(value.workspace, '', 4_096),
     agentPreset: normalizeAgentPresetId(value.agentPreset),
+    defaultModel: normalizeDefaultModelSelection(value.defaultModel),
     contextEnhancement: normalizeContextEnhancementConfig(value.contextEnhancement),
     ...(Object.hasOwn(value, 'accessPolicy')
       ? { accessPolicy: normalizeAccessPolicy(value.accessPolicy) }
@@ -137,6 +144,7 @@ export function normalizeSnapshot(value) {
     totals: { configured: bots.length, connected: bots.filter((bot) => bot.connected).length },
     provisioning: source.provisioning ? normalizeProvisioning(source.provisioning) : null,
     agentPresetCatalog: normalizeAgentPresetCatalog(source.agentPresetCatalog),
+    modelCatalog: normalizeHostModelCatalog(source.modelCatalog),
   };
 }
 

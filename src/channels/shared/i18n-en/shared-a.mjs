@@ -57,8 +57,10 @@ export default {
     'This conversation exceeds the model context limit. Send /compact or /new, then try again.',
   '当前模型不存在或暂不可用。请发送 /models 查看并使用 /model 切换模型。':
     'The current model does not exist or is unavailable. Send /models and use /model to switch models.',
-  '当前模型不存在或不支持所选配置。请发送 /models，并使用 /model 重新选择。':
-    'The current model does not exist or does not support the selected settings. Send /models and use /model to choose again.',
+  '当前会话绑定的模型已不存在或不可用。请发送 /new 开启新会话后重试；或发送 /models，再用 /model 切换模型。':
+    'The model bound to this Session no longer exists or is unavailable. Send /new to start a new Session, or send /models and use /model to switch.',
+  '原会话绑定的模型已失效，已自动开启新会话并重试。':
+    'The model bound to the previous Session was unavailable, so a new Session was started and the request was retried.',
   '当前模型不支持这类内容或所选配置。请调整内容、模型或推理等级后重试。':
     'The current model does not support this content or the selected settings. Adjust the content, model, or reasoning effort and try again.',
   '当前模型不支持所选配置。请切换模型或推理等级后重试。':
@@ -77,8 +79,8 @@ export default {
     'The model rejected the current content. Revise the request and try again.',
   '模型达到输出长度上限，但没有生成可显示的结果。请缩小任务范围后重试。':
     'The model reached its output limit without producing a displayable result. Reduce the task scope and try again.',
-  '任务正在等待无法在当前渠道完成的操作。请在 DeepSeek Harness 中处理后再试。':
-    'The task is waiting for an action that cannot be completed in this channel. Handle it in DeepSeek Harness, then try again.',
+  '任务正在等待审批或问答，但当前聊天未能收到该请求（可能只出现在 DeepSeek Harness 网页）。请发送 /stop 取消后重试；若再次出现，请在本聊天回复「批准」或「拒绝」。':
+    'The task is waiting for an approval or question that did not reach this chat (it may only appear in the DeepSeek Harness web UI). Send /stop to cancel and try again; if it happens again, reply 批准 / 拒绝 (or approve / reject) here in chat.',
   '任务被意外中断，本次未完成。请重试。':
     'The task was unexpectedly interrupted and did not finish. Please try again.',
   '当前会话已不存在。请发送 /new 创建新会话后重试。':
@@ -182,4 +184,10 @@ export default {
     'Failed to submit the answer. Please resend your answer to the current question.',
   '检测到这个 Session 中遗留的待回答问题，已安全取消并继续处理你刚才的消息。':
     'A pending question left over in this Session was detected. It has been safely cancelled, and your latest message is being processed.',
+  '请在本聊天精准回复「批准」或「拒绝」（也支持：同意 / 不同意 / yes / no）。勿到 DeepSeek Harness 网页里点，否则无人看会一直卡住。':
+    'Reply exactly with 批准 or 拒绝 in this chat (also: 同意 / 不同意 / yes / no). Do not use the DeepSeek Harness web UI — if nobody is watching it, the task will hang.',
+  '审批等待超时，已自动拒绝此次操作。请重新发送问题，或调整工具审批策略后重试。':
+    'Approval timed out and was automatically rejected. Resend your question, or adjust the tool-approval policy and try again.',
+  '检测到遗留的工具审批请求，已在聊天侧自动拒绝以免任务一直卡住。请重新发送你的问题。':
+    'A leftover tool-approval request was detected and automatically rejected in chat so the task would not hang. Please resend your question.',
 };

@@ -16,6 +16,7 @@ import { resolveRpcAuthority } from '../../rpc-authority.mjs';
 import { installConnectionRpcChannel } from '../../connection-rpc-mount.mjs';
 import { publicWorkspaceError, SET_WORKSPACE_ENDPOINT, validWorkspacePayload } from '../shared/workspace-rpc.mjs';
 import { SET_AGENT_PRESET_ENDPOINT, validAgentPresetPayload } from '../shared/agent-preset-rpc.mjs';
+import { SET_DEFAULT_MODEL_ENDPOINT, validDefaultModelPayload } from '../shared/default-model-rpc.mjs';
 
 export const WHATSAPP_RPC_CHANNEL = '/whatsapp';
 export const WHATSAPP_ENDPOINTS = Object.freeze({
@@ -32,6 +33,7 @@ export const WHATSAPP_ENDPOINTS = Object.freeze({
   setGroupSessionScope: SET_GROUP_SESSION_SCOPE_ENDPOINT,
   setWorkspace: SET_WORKSPACE_ENDPOINT,
   setAgentPreset: SET_AGENT_PRESET_ENDPOINT,
+  setDefaultModel: SET_DEFAULT_MODEL_ENDPOINT,
   setContextEnhancement: SET_CONTEXT_ENHANCEMENT_ENDPOINT,
   resolveChannelPeer: 'bot.session.channel-peer',
 });
@@ -96,6 +98,10 @@ function payloadFailure(endpoint, payload) {
   if (endpoint === WHATSAPP_ENDPOINTS.setAgentPreset) {
     return validAgentPresetPayload(payload)
       ? null : '请选择 Agent Preset。';
+  }
+  if (endpoint === WHATSAPP_ENDPOINTS.setDefaultModel) {
+    return validDefaultModelPayload(payload)
+      ? null : '请选择默认模型。';
   }
   if (endpoint === WHATSAPP_ENDPOINTS.setContextEnhancement) {
     return validContextEnhancementPayload(payload)
@@ -219,6 +225,12 @@ export function createWhatsappRpcHandler(controller, { encodeQr = qrDataUrl } = 
         if (typeof controller.updateAgentPreset !== 'function') throw new Error('Agent preset update is unavailable');
         value = await publicStatus(
           await controller.updateAgentPreset(payload.botId, payload.agentPreset),
+          cachedEncode,
+        );
+      } else if (endpoint === WHATSAPP_ENDPOINTS.setDefaultModel) {
+        if (typeof controller.updateDefaultModel !== 'function') throw new Error('Default model update is unavailable');
+        value = await publicStatus(
+          await controller.updateDefaultModel(payload.botId, payload.defaultModel),
           cachedEncode,
         );
       } else if (endpoint === WHATSAPP_ENDPOINTS.setAccessPolicy) {

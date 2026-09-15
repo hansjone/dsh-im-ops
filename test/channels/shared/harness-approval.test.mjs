@@ -198,7 +198,7 @@ test('never submits the next FIFO approval before its operation is presented', a
   assert.equal(sent.some(({ toolName, text }) => (
     toolName === 'second-tool' && text.includes('second-tool --run')
   )), true);
-  assert.equal(earlyTexts[0].includes('请精准回复'), true);
+  assert.equal(earlyTexts[0].includes('精准回复'), true);
 
   await queue.claimReply({
     key: 'direct:actor-a',
@@ -237,7 +237,7 @@ test('a failed presentation cannot be followed by a blind approval', async () =>
   }).process();
   assert.equal(responses.length, 0);
   assert.equal(sent.some((text) => text.includes('bash --run')), true);
-  assert.equal(sent.some((text) => text.includes('请精准回复')), true);
+  assert.equal(sent.some((text) => text.includes('精准回复')), true);
 
   await queue.claimReply({
     key: 'direct:actor-a',
@@ -321,7 +321,7 @@ test('resolved waits for an in-flight presentation before showing the next appro
   assert.match(sent[0], /first-tool --run/);
   assert.equal(sent[1], '已拒绝此次操作。');
   assert.match(sent[2], /second-tool --run/);
-  assert.match(sent[3], /请精准回复/);
+  assert.match(sent[3], /精准回复/);
   assert.equal(secondResponses.length, 0);
 
   await queue.claimReply({
@@ -539,7 +539,7 @@ test('approval decisions stay bound to the initiating actor, route, and group me
   assert.equal(responses.length, 1);
   assert.equal(responses[0].value.outcome, 'allowed-once');
   assert.equal(sent.filter((text) => text.includes('只有发起当前任务')).length, 2);
-  assert.equal(sent.some((text) => text.includes('请精准回复')), true);
+  assert.equal(sent.some((text) => text.includes('精准回复')), true);
 });
 
 test('a deferred approval reply stays silent when the approval resolves with its question unfinished', async () => {

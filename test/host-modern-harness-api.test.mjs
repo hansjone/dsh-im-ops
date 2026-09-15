@@ -455,3 +455,184 @@ test('modern adapter delegates interactions when a Session exposes no readable e
   }, () => Promise.resolve(questionAnswer));
   assert.deepEqual(question, questionAnswer);
 });
+
+forEachSessionApi('an approval before user/message', async (sessionApi) => {
+  const { events, session } = sessionFixture(sessionApi);
+  const eventRecord = (event) => ({ type: 'event', event });
+  let fixture;
+  let turnTask;
+  const append = (event) => {
+    events.push(event);
+    fixture.emit('session/event', session, event);
+  };
+  const gateway = {
+    async invoke(request) {
+      const endpoint = `${request.namespace}/${request.method}`;
+      if (endpoint === 'session/page') {
+        return { records: events.map(eventRecord), hasMore: false };
+      }
+      if (endpoint === 'session/prompt') {
+        turnTask = (async () => {
+          // Race that previously delegated to DSH Web: approval arrives while the
+          // IM ask is live (reconnect set) but before user/message flips `active`.
+          append({ type: 'turn/start', seq: 0, time: 0, data: { turn: 1 } });
+          append({
+            type: 'approval/asked', seq: 1, time: 1,
+            data: { id: 'approval-early', toolName: 'bash', callId: 'call-early' },
+          });
+          const outcome = await fixture.waterfall('approval/request', {
+            agent: { id: 'session', session },
+            toolName: 'bash',
+            callId: 'call-early',
+          }, () => Promise.resolve('browser-owned'));
+          append({
+            type: 'user/message', seq: 2, time: 2,
+            data: {
+              turn: 1,
+              source: { kind: 'user', rpcId: request.args.request.requestId },
+              message: { content: [] },
+            },
+          });
+          append({
+            type: 'approval/decided', seq: 3, time: 3,
+            data: { id: 'approval-early', outcome },
+          });
+          append({
+            type: 'assistant/message', seq: 4, time: 4,
+            data: { turn: 1, message: { content: [{ type: 'text', text: 'early-ok' }] } },
+          });
+          append({
+            type: 'turn/end', seq: 5, time: 5,
+            data: { turn: 1, reason: { kind: 'completed' } },
+          });
+        })();
+        return { accepted: true };
+      }
+      throw new Error(`unexpected invoke ${endpoint}`);
+    },
+    async stream(request) {
+      if (`${request.namespace}/${request.method}` !== 'session/follow') {
+        throw new Error('unexpected stream');
+      }
+      return asyncValues({
+        type: 'snapshot', cursor: -1, records: [], hasMore: false,
+        projections: { asOfSeq: -1, values: {} },
+      });
+    },
+  };
+  fixture = fakeContext(gateway);
+  const client = new HarnessClient({
+    ...harnessConnection(fixture.ctx),
+    workspace: '/workspace',
+    rpcIdPrefix: 'early-approval',
+    logPrefix: 'early-approval',
+  });
+  const interactions = [];
+  const answer = await client.ask('session', 'approve early', {
+    timeoutMs: 5_000,
+    onInteraction: async (interaction) => {
+      interactions.push(interaction);
+      await interaction.respond({
+        ok: true,
+        value: {
+          sessionId: interaction.sessionId,
+          approvalId: interaction.payload.approvalId,
+          outcome: 'allowed-once',
+        },
+      });
+    },
+  });
+  await turnTask;
+  assert.equal(answer, 'early-ok');
+  assert.equal(interactions.length, 1);
+  assert.equal(interactions[0].kind, 'approval');
+  assert.equal(events.find((event) => event.type === 'approval/decided')?.data.outcome, 'allowed-once');
+});
+
+test('modern adapter still claims approval when callId shape drifts but toolName matches', async () => {
+  const { events, session } = sessionFixture('snapshotEvents');
+  const eventRecord = (event) => ({ type: 'event', event });
+  let fixture;
+  let turnTask;
+  const append = (event) => {
+    events.push(event);
+    fixture.emit('session/event', session, event);
+  };
+  const gateway = {
+    async invoke(request) {
+      const endpoint = `${request.namespace}/${request.method}`;
+      if (endpoint === 'session/page') {
+        return { records: events.map(eventRecord), hasMore: false };
+      }
+      if (endpoint === 'session/prompt') {
+        const rpcId = request.args.request.requestId;
+        turnTask = (async () => {
+          append({ type: 'turn/start', seq: 0, time: 0, data: { turn: 1 } });
+          append({
+            type: 'user/message', seq: 1, time: 1,
+            data: { turn: 1, source: { kind: 'user', rpcId }, message: { content: [] } },
+          });
+          append({
+            type: 'approval/asked', seq: 2, time: 2,
+            // Event omits callId while the request carries one — previously next()'d to Web.
+            data: { id: 'approval-drift', toolName: 'bash' },
+          });
+          const outcome = await fixture.waterfall('approval/request', {
+            agent: { id: 'session', session },
+            toolName: 'bash',
+            callId: 'call-drift',
+          }, () => Promise.resolve('browser-owned'));
+          append({
+            type: 'approval/decided', seq: 3, time: 3,
+            data: { id: 'approval-drift', outcome },
+          });
+          append({
+            type: 'assistant/message', seq: 4, time: 4,
+            data: { turn: 1, message: { content: [{ type: 'text', text: 'drift-ok' }] } },
+          });
+          append({
+            type: 'turn/end', seq: 5, time: 5,
+            data: { turn: 1, reason: { kind: 'completed' } },
+          });
+        })();
+        return { accepted: true };
+      }
+      throw new Error(`unexpected invoke ${endpoint}`);
+    },
+    async stream(request) {
+      if (`${request.namespace}/${request.method}` !== 'session/follow') {
+        throw new Error('unexpected stream');
+      }
+      return asyncValues({
+        type: 'snapshot', cursor: -1, records: [], hasMore: false,
+        projections: { asOfSeq: -1, values: {} },
+      });
+    },
+  };
+  fixture = fakeContext(gateway);
+  const client = new HarnessClient({
+    ...harnessConnection(fixture.ctx),
+    workspace: '/workspace',
+    rpcIdPrefix: 'drift-approval',
+    logPrefix: 'drift-approval',
+  });
+  const interactions = [];
+  const answer = await client.ask('session', 'approve drift', {
+    timeoutMs: 5_000,
+    onInteraction: async (interaction) => {
+      interactions.push(interaction);
+      await interaction.respond({
+        ok: true,
+        value: {
+          sessionId: interaction.sessionId,
+          approvalId: interaction.payload.approvalId,
+          outcome: 'allowed-once',
+        },
+      });
+    },
+  });
+  await turnTask;
+  assert.equal(answer, 'drift-ok');
+  assert.equal(interactions.length, 1);
+  assert.equal(events.find((event) => event.type === 'approval/decided')?.data.outcome, 'allowed-once');
+});

@@ -399,6 +399,11 @@ function consumeInteractionOwnership(ownership, entries) {
  * Decide whether the current Host has a live dsh-im interaction watcher for
  * this Session.  The modern Harness adapter uses the same ownership registry
  * as HarnessClient so it never steals a browser-owned question or approval.
+ *
+ * Claim while an IM ask is still open — not only after `user/message` has
+ * flipped `active`. Waiting for `active` races tool approvals that fire before
+ * ownership consumption catches up, which silently delegates to DSH Web and
+ * leaves WhatsApp/etc. hung with no visible prompt.
  */
 export function hasActiveHarnessInteractionOwner(scope, sessionId, entries = []) {
   if (!scope || !['object', 'function', 'string'].includes(typeof scope)
@@ -407,9 +412,9 @@ export function hasActiveHarnessInteractionOwner(scope, sessionId, entries = [])
   if (!owners || owners.size === 0) return false;
   for (const ownership of owners) consumeInteractionOwnership(ownership, entries);
   return [...owners].some((ownership) => (
-    ownership.active
-    && !ownership.completed
+    !ownership.completed
     && typeof ownership.reconnect === 'function'
+    && (ownership.active || ownership.started || ownership.promptRpcId)
   ));
 }
 
@@ -1247,6 +1252,18 @@ export class HarnessClient {
       .filter((ownership) => ownership.active)
       .sort((left, right) => left.order - right.order);
     if (active.length > 0) return { ownership: active[0], recovered: false };
+
+    // A live IM ask owns in-turn approvals/questions even before user/message
+    // flips `active`. Marking these recovered would auto-reject without ever
+    // showing the prompt in WhatsApp (or other text channels).
+    const live = owners
+      .filter((ownership) => (
+        !ownership.completed
+        && typeof ownership.reconnect === 'function'
+        && Boolean(ownership.promptRpcId)
+      ))
+      .sort((left, right) => left.order - right.order)[0] ?? null;
+    if (live) return { ownership: live, recovered: false };
 
     // A newly attached IM conversation may encounter a question left by
     // an earlier runtime before its queued prompt starts. Let the oldest such

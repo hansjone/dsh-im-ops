@@ -103,7 +103,7 @@ const FAILURE_MESSAGES = Object.freeze({
   MODEL_CONTEXT_LIMIT:
     '当前会话内容超过模型上下文上限。请发送 /compact 或 /new 后重试。',
   MODEL_UNAVAILABLE:
-    '当前模型不存在或不支持所选配置。请发送 /models，并使用 /model 重新选择。',
+    '当前会话绑定的模型已不存在或不可用。请发送 /new 开启新会话后重试；或发送 /models，再用 /model 切换模型。',
   MODEL_CONFIG:
     '当前模型不支持这类内容或所选配置。请调整内容、模型或推理等级后重试。',
   MODEL_TIMEOUT:
@@ -121,7 +121,7 @@ const FAILURE_MESSAGES = Object.freeze({
   MODEL_OUTPUT_LIMIT:
     '模型达到输出长度上限，但没有生成可显示的结果。请缩小任务范围后重试。',
   TURN_BLOCKED:
-    '任务正在等待无法在当前渠道完成的操作。请在 DeepSeek Harness 中处理后再试。',
+    '任务正在等待审批或问答，但当前聊天未能收到该请求（可能只出现在 DeepSeek Harness 网页）。请发送 /stop 取消后重试；若再次出现，请在本聊天回复「批准」或「拒绝」。',
   TURN_INTERRUPTED:
     '任务被意外中断，本次未完成。请重试。',
   SESSION_NOT_FOUND:

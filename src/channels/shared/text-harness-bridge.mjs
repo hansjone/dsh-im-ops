@@ -57,6 +57,7 @@ import {
 } from './semantic/delivery.mjs';
 import {
   channelDeliveryFailure,
+  classifyMessageFailure,
   clearLastMessageFailure,
   messageFailureText,
   setLastMessageFailure,
@@ -732,7 +733,7 @@ export class TextHarnessBridge {
         }));
         contextEnhanced = content !== originalContent;
       }
-      const { answer, artifacts = [] } = await askInWorkspaceSession({
+      const askArgs = {
         harness: this.#harness,
         state: this.#state,
         key: conversationKey,
@@ -770,14 +771,35 @@ export class TextHarnessBridge {
           onInteractionResolved: (resolution) => this.#handleInteractionResolved(resolution),
           files: message.files,
         },
-      });
+      };
+      // Session remembers provider/model. When catalog/preset defaults change, the
+      // stale binding surfaces as MODEL_UNAVAILABLE — recreate once so field users
+      // need not find the Session in DSH UI or remember /new.
+      let sessionResetNotice = null;
+      let askResult;
+      try {
+        askResult = await askInWorkspaceSession(askArgs);
+      } catch (error) {
+        const staleModel = classifyMessageFailure(error).code === 'MODEL_UNAVAILABLE'
+          && typeof this.#state.clearSession === 'function';
+        if (!staleModel) throw error;
+        this.#logger.warn?.(
+          `[dsh-im:${this.#descriptor.key}] session model unavailable; recreating Session and retrying once`,
+        );
+        await this.#state.clearSession(conversationKey);
+        askResult = await askInWorkspaceSession(askArgs);
+        sessionResetNotice = t('原会话绑定的模型已失效，已自动开启新会话并重试。');
+      }
+      const { answer, artifacts = [] } = askResult;
       if (batchSubmission) {
         this.#batches.complete(conversationKey, batchSubmission.token);
       }
       const fileOnlyCompletion = !cleanText(answer) && artifacts.length > 0;
       const visibleAnswer = fileOnlyCompletion
         ? t(FILE_ONLY_COMPLETION_TEXT)
-        : answer;
+        : sessionResetNotice && cleanText(answer)
+          ? `${sessionResetNotice}\n\n${answer}`
+          : (sessionResetNotice || answer);
       const answerFormat = fileOnlyCompletion ? 'plain' : 'markdown';
       let textDeliveryError = null;
       let textReceipt = null;
