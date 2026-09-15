@@ -40,6 +40,8 @@ test('message failures use verified turn-end provider codes without exposing pro
     ['STREAM_CLOSED', 'MODEL_STREAM'],
     ['EMPTY_RESPONSE', 'MODEL_EMPTY_REPLY'],
     ['CONTENT_FILTER', 'MODEL_CONTENT_REJECTED'],
+    ['INVALID_REQUEST', 'MODEL_CONFIG'],
+    ['PI_AI_ERROR', 'MODEL_SERVICE'],
   ]) {
     const failure = classifyMessageFailure({
       code: 'harness-turn-failed',
@@ -59,11 +61,52 @@ test('message failures use verified turn-end provider codes without exposing pro
   }, options).code, 'INTERNAL_UNKNOWN');
 });
 
+test('PI_AI_ERROR with TLS or transport wording maps to MODEL_TRANSPORT', () => {
+  for (const message of [
+    'unable to verify the first certificate',
+    'request to https://api.example.com failed, reason: UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+    'fetch failed: other side closed',
+    'Stream ended without finish_reason',
+  ]) {
+    const failure = classifyMessageFailure({
+      code: 'harness-turn-failed',
+      providerCode: 'PI_AI_ERROR',
+      reason: { kind: 'error', failure: { code: 'PI_AI_ERROR', message } },
+    }, options);
+    assert.equal(failure.code, 'MODEL_TRANSPORT', message);
+    assert.match(failure.message, /无法连接模型服务/);
+    assert.doesNotMatch(JSON.stringify(failure), /certificate|UNABLE_TO|finish_reason|example\.com/);
+  }
+
+  assert.equal(classifyMessageFailure({
+    code: 'harness-turn-failed',
+    providerCode: 'PI_AI_ERROR',
+    reason: { kind: 'error', error: { code: 'PI_AI_ERROR', message: 'unable to verify the first certificate' } },
+  }, options).code, 'MODEL_TRANSPORT');
+});
+
+test('RPC internal and UNKNOWN provider codes no longer fall through to INTERNAL_UNKNOWN', () => {
+  assert.equal(classifyMessageFailure({
+    code: 'internal', method: 'session.create',
+  }, options).code, 'HARNESS_SERVICE');
+  assert.equal(classifyMessageFailure({
+    code: 'harness-turn-failed', providerCode: 'UNKNOWN',
+  }, options).code, 'MODEL_SERVICE');
+  assert.equal(classifyMessageFailure({
+    code: 'harness-turn-failed',
+    providerCode: 'UNKNOWN',
+    reason: { kind: 'error', error: { code: 'UNKNOWN', message: 'unable to verify the first certificate' } },
+  }, options).code, 'MODEL_TRANSPORT');
+  const plain = classifyMessageFailure(new Error('secret-shaped internal detail'), options);
+  assert.equal(plain.code, 'INTERNAL_UNKNOWN');
+  assert.equal(plain.reason, 'ERROR');
+});
+
 test('message failure text contains a safe code and traceable reference', () => {
   const failure = classifyMessageFailure(new Error('secret-shaped internal detail'), options);
   assert.deepEqual(failure, {
     code: 'INTERNAL_UNKNOWN',
-    reason: 'INTERNAL_UNKNOWN',
+    reason: 'ERROR',
     message: '任务未完成，暂时无法确定原因。请重试；若持续发生，请将参考号提供给管理员。',
     referenceId: 'MF-TEST01',
     at: 123,

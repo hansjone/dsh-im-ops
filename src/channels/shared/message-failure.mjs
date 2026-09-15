@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 import { t } from './i18n.mjs';
 
@@ -13,15 +16,68 @@ const PROVIDER_FAILURES = Object.freeze({
   NO_ADAPTER: 'MODEL_UNAVAILABLE',
   UNSUPPORTED_OPTION: 'MODEL_CONFIG',
   UNSUPPORTED_REASONING_EFFORT: 'MODEL_CONFIG',
+  INVALID_REQUEST: 'MODEL_CONFIG',
   TIMEOUT: 'MODEL_TIMEOUT',
   TRANSPORT: 'MODEL_TRANSPORT',
   SERVER: 'MODEL_SERVICE',
+  // DSH catch-alls when the provider did not classify further.
+  PI_AI_ERROR: 'MODEL_SERVICE',
+  UNKNOWN: 'MODEL_SERVICE',
   STREAM_CLOSED: 'MODEL_STREAM',
   MALFORMED_RESPONSE: 'MODEL_STREAM',
   EMPTY_RESPONSE: 'MODEL_EMPTY_REPLY',
   CONTENT_FILTER: 'MODEL_CONTENT_REJECTED',
   UNSUPPORTED_CONTENT: 'MODEL_CONFIG',
 });
+
+const MISSING_SESSION_CODES = new Set([
+  'session-not-found',
+  'SESSION_NOT_FOUND',
+  'not-found',
+]);
+
+/** Collect short diagnostic text from turn reason / message / cause chain. */
+function diagnosticMessages(error) {
+  const out = [];
+  const push = (value) => {
+    if (typeof value === 'string' && value.trim()) out.push(value.trim());
+  };
+  const reason = error?.reason;
+  if (reason && typeof reason === 'object') {
+    const failure = reason.error ?? reason.failure;
+    push(failure?.message);
+    push(typeof failure === 'string' ? failure : null);
+  }
+  push(error?.message);
+  let cause = error?.cause;
+  const seen = new Set();
+  while (cause && typeof cause === 'object' && !seen.has(cause) && out.length < 6) {
+    seen.add(cause);
+    push(cause.message);
+    push(cause.code);
+    cause = cause.cause;
+  }
+  return out;
+}
+
+function providerErrorMessage(error) {
+  return diagnosticMessages(error).join('\n');
+}
+
+/**
+ * Transport / TLS wording that DSH may still emit as PI_AI_ERROR.
+ * Keep in sync with common Node/undici/pi-ai surfaces; do not require DSH changes.
+ */
+function isTransportProviderMessage(message) {
+  if (!message) return false;
+  return /\b(?:network|connection|socket|fetch)\b|\bECONN[A-Z]+\b/i.test(message)
+    || /\b(?:other side closed|HTTP2 request did not get a response|WebSocket closed unexpectedly)\b/i.test(message)
+    || /\bterminated\b|premature close/i.test(message)
+    || /stream ended (?:before|without)\b/i.test(message)
+    || /\bunable to verify the first certificate\b/i.test(message)
+    || /\bUNABLE_TO_VERIFY_LEAF_SIGNATURE\b|\bUNABLE_TO_GET_ISSUER_CERT(?:_LOCALLY)?\b|\bCERT_HAS_EXPIRED\b|\bDEPTH_ZERO_SELF_SIGNED_CERT\b|\bERR_TLS_CERT_ALTNAME_INVALID\b/.test(message)
+    || /\bself[- ]signed certificate\b/i.test(message);
+}
 
 const FAILURE_MESSAGES = Object.freeze({
   HARNESS_CONNECT:
@@ -94,15 +150,22 @@ const FAILURE_MESSAGES = Object.freeze({
 
 function providerFailureCode(error) {
   if (error?.code !== 'harness-turn-failed') return null;
-  const value = error?.providerCode ?? error?.details?.providerCode;
-  if (typeof value !== 'string') return null;
-  return PROVIDER_FAILURES[value.trim().toUpperCase()] ?? null;
+  const raw = error?.providerCode ?? error?.details?.providerCode;
+  const key = typeof raw === 'string' ? raw.trim().toUpperCase() : '';
+  const mapped = key ? (PROVIDER_FAILURES[key] ?? null) : null;
+  // Specific provider codes win; PI_AI_ERROR/UNKNOWN are catch-alls and may still be TLS/transport.
+  if (mapped && key !== 'PI_AI_ERROR' && key !== 'UNKNOWN') return mapped;
+  if (isTransportProviderMessage(providerErrorMessage(error))) return 'MODEL_TRANSPORT';
+  return mapped;
 }
 
 function failureCode(error) {
   const code = typeof error?.code === 'string' ? error.code : '';
   const providerCode = providerFailureCode(error);
   if (providerCode) return providerCode;
+
+  // Transport wording can appear on non-turn errors (RPC/cause chain) too.
+  if (isTransportProviderMessage(providerErrorMessage(error))) return 'MODEL_TRANSPORT';
 
   if (code === 'harness-connect-failed') {
     return ['session.prompt', 'session.history'].includes(error?.method)
@@ -124,12 +187,15 @@ function failureCode(error) {
     return 'HARNESS_PROTOCOL';
   }
   if (code === 'harness-turn-failed') return 'INTERNAL_UNKNOWN';
-  if (['harness-http-failed', 'harness-rpc-rejected'].includes(code)) return 'HARNESS_SERVICE';
+  // Host RPC catch-all (common when session/preset/workspace ops fail without a typed code).
+  if (code === 'internal' || ['harness-http-failed', 'harness-rpc-rejected'].includes(code)) {
+    return 'HARNESS_SERVICE';
+  }
   if (code === 'model-empty-response') return 'MODEL_EMPTY_REPLY';
   if (code === 'model-max-tokens') return 'MODEL_OUTPUT_LIMIT';
   if (code === 'turn-blocked') return 'TURN_BLOCKED';
   if (['turn-interrupted', 'turn-aborted'].includes(code)) return 'TURN_INTERRUPTED';
-  if (code === 'session-not-found') return 'SESSION_NOT_FOUND';
+  if (MISSING_SESSION_CODES.has(code)) return 'SESSION_NOT_FOUND';
   if (code === 'agent-busy') return 'SESSION_BUSY';
   if (code === 'workspace-session-stale') return 'SESSION_STALE';
   if (code.startsWith('workspace-')) return 'WORKSPACE_UNAVAILABLE';
@@ -163,6 +229,37 @@ function failureCode(error) {
   return 'INTERNAL_UNKNOWN';
 }
 
+function inferredFailureReason(error) {
+  return safeFailureReason(error?.providerCode)
+    ?? safeFailureReason(error?.code)
+    ?? safeFailureReason(error?.name);
+}
+
+async function persistInternalUnknownDiagnostic(failure, error) {
+  try {
+    const dir = join(homedir(), '.dsh', 'integrations', 'dsh-im-ops');
+    await mkdir(dir, { recursive: true });
+    const payload = {
+      at: new Date(failure.at).toISOString(),
+      referenceId: failure.referenceId,
+      failureCode: failure.code,
+      failureReason: failure.reason,
+      errorName: typeof error?.name === 'string' ? error.name.slice(0, 80) : null,
+      errorCode: typeof error?.code === 'string' ? error.code.slice(0, 80) : null,
+      providerCode: typeof error?.providerCode === 'string' ? error.providerCode.slice(0, 80) : null,
+      method: typeof error?.method === 'string' ? error.method.slice(0, 80) : null,
+      messages: diagnosticMessages(error).map((text) => text.slice(0, 240)),
+    };
+    await writeFile(
+      join(dir, 'last-internal-unknown.json'),
+      `${JSON.stringify(payload, null, 2)}\n`,
+      { encoding: 'utf8', mode: 0o600 },
+    );
+  } catch {
+    // Diagnostics must never mask the user-facing failure path.
+  }
+}
+
 function safeReferenceId(value) {
   return typeof value === 'string' && /^[A-Z0-9-]{6,40}$/u.test(value)
     ? value
@@ -180,17 +277,20 @@ export function classifyMessageFailure(error, {
   referenceId,
   at = Date.now(),
 } = {}) {
-  const safeReason = safeFailureReason(reason);
+  const explicitReason = safeFailureReason(reason);
   const classifiedCode = failureCode(error);
   const code = classifiedCode === 'INTERNAL_UNKNOWN'
-    && safeReason
+    && explicitReason
     && typeof userMessage === 'string'
     && userMessage.trim()
     ? 'INPUT_INVALID'
     : classifiedCode;
+  const safeReason = code === 'INTERNAL_UNKNOWN'
+    ? (explicitReason ?? inferredFailureReason(error) ?? code)
+    : (explicitReason ?? code);
   return Object.freeze({
     code,
-    reason: safeReason ?? code,
+    reason: safeReason,
     message: typeof userMessage === 'string' && userMessage.trim()
       ? userMessage.trim()
       : t(FAILURE_MESSAGES[code]),
@@ -206,7 +306,16 @@ export function messageFailureText(failure) {
 export function setLastMessageFailure(status, error, options) {
   const failure = classifyMessageFailure(error, options);
   status.lastMessageError = failure;
+  if (failure.code === 'INTERNAL_UNKNOWN') {
+    void persistInternalUnknownDiagnostic(failure, error);
+  }
   return failure;
+}
+
+/** @internal exported for sessionExists / tests */
+export function isMissingSessionError(error) {
+  const code = typeof error?.code === 'string' ? error.code : '';
+  return MISSING_SESSION_CODES.has(code);
 }
 
 export function clearLastMessageFailure(status) {

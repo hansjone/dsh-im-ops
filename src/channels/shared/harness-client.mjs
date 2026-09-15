@@ -964,7 +964,14 @@ export class HarnessClient {
       await this.rpc('session.history', { sessionId, maxMessages: 1 }, 30_000, options);
       return true;
     } catch (error) {
-      if (error instanceof HarnessRpcError && error.code === 'session-not-found') return false;
+      // Missing Session must recreate a binding; accept both legacy and branded codes.
+      if (error instanceof HarnessRpcError && (
+        error.code === 'session-not-found'
+        || error.code === 'SESSION_NOT_FOUND'
+        || error.code === 'not-found'
+      )) {
+        return false;
+      }
       throw error;
     }
   }
