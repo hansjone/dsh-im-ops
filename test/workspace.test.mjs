@@ -80,6 +80,96 @@ test('workspace asks collect result files without an explicit Gate', async () =>
   assert.equal(typeof observed[0].onArtifact, 'function');
 });
 
+test('ask recreates when the bound Session is outside the configured workspace', async () => {
+  const calls = [];
+  const state = {
+    sessions: { chat: 'session-old-workspace' },
+    sessionFor(key) { return this.sessions[key] ?? null; },
+    async clearSession(key) { delete this.sessions[key]; },
+    async setSession(key, sessionId) {
+      this.sessions[key] = sessionId;
+      return true;
+    },
+  };
+  const harness = {
+    currentWorkspace: () => '/bot/workspace',
+    async sessionExists(sessionId) { return sessionId === 'session-old-workspace'; },
+    async sessionBelongsToWorkspace(sessionId, workspace) {
+      calls.push(['belongs', sessionId, workspace]);
+      return false;
+    },
+    async createSession(options) {
+      calls.push(['create', options]);
+      return 'session-new-workspace';
+    },
+    async ask(sessionId, text) {
+      calls.push(['ask', sessionId, text]);
+      return `ok:${sessionId}`;
+    },
+  };
+
+  assert.deepEqual(await askInWorkspaceSession({
+    harness,
+    state,
+    key: 'chat',
+    text: 'hello',
+    createOptions: { workspace: '/bot/workspace', agentPreset: 'netxops' },
+  }), {
+    sessionId: 'session-new-workspace',
+    answer: 'ok:session-new-workspace',
+  });
+  assert.deepEqual(calls, [
+    ['belongs', 'session-old-workspace', '/bot/workspace'],
+    ['create', { workspace: '/bot/workspace', agentPreset: 'netxops' }],
+    ['ask', 'session-new-workspace', 'hello'],
+  ]);
+  assert.equal(state.sessionFor('chat'), 'session-new-workspace');
+});
+
+test('ask recreates when the bound Session probe fails with a non-missing Host error', async () => {
+  const calls = [];
+  const state = {
+    sessions: { chat: 'session-zombie' },
+    sessionFor(key) { return this.sessions[key] ?? null; },
+    async clearSession(key) { delete this.sessions[key]; },
+    async setSession(key, sessionId) {
+      this.sessions[key] = sessionId;
+      return true;
+    },
+  };
+  const harness = {
+    async sessionExists(sessionId) {
+      calls.push(['exists', sessionId]);
+      const error = new Error('session.history: boom');
+      error.code = 'internal';
+      throw error;
+    },
+    async createSession() {
+      calls.push(['create']);
+      return 'session-fresh';
+    },
+    async ask(sessionId, text) {
+      calls.push(['ask', sessionId, text]);
+      return 'recovered';
+    },
+  };
+
+  assert.deepEqual(await askInWorkspaceSession({
+    harness,
+    state,
+    key: 'chat',
+    text: 'retry',
+  }), {
+    sessionId: 'session-fresh',
+    answer: 'recovered',
+  });
+  assert.deepEqual(calls, [
+    ['exists', 'session-zombie'],
+    ['create'],
+    ['ask', 'session-fresh', 'retry'],
+  ]);
+});
+
 test('BotWorkspaceStore persists the creation default and keeps bots isolated', async (t) => {
   const { path, defaultWorkspace, alternateWorkspace } = await fixture(t);
   const store = await new BotWorkspaceStore(path, { defaultWorkspace }).load();

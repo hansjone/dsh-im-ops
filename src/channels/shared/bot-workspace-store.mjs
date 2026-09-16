@@ -1285,6 +1285,16 @@ export function createBotWorkspaceScope(
   const sessionGenerations = new Map();
   const scopedHarness = new Proxy(harness, {
     get(target, property) {
+      if (property === 'currentWorkspace') {
+        return () => {
+          if (!isCurrentScope()) {
+            const error = new Error('找不到要修改的机器人。');
+            error.code = 'workspace-bot-not-found';
+            throw error;
+          }
+          return workspaces.workspaceFor(botId);
+        };
+      }
       if (property === 'agentPresetSettings') {
         return async (options = {}) => {
           options?.signal?.throwIfAborted();

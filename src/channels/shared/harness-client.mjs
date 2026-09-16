@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { isAbsolute } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 
 import { adoptRegisteredWorkspaceSession } from './harness-session-binding.mjs';
 import {
@@ -979,6 +979,39 @@ export class HarnessClient {
       }
       throw error;
     }
+  }
+
+  /**
+   * Whether a Session is registered under the given workspace path.
+   * Prefers session.list `cwd`, then workspace.list membership.
+   */
+  async sessionBelongsToWorkspace(sessionId, workspacePath, options = {}) {
+    if (typeof sessionId !== 'string' || !sessionId) return false;
+    if (typeof workspacePath !== 'string' || !workspacePath.trim()) return false;
+    const wanted = resolve(workspacePath.trim());
+    const samePath = (value) => {
+      if (typeof value !== 'string' || !value.trim()) return false;
+      const got = resolve(value.trim());
+      return process.platform === 'win32'
+        ? got.toLowerCase() === wanted.toLowerCase()
+        : got === wanted;
+    };
+
+    const sessionList = await this.rpc('session.list', {}, 30_000, options);
+    if (!sessionList || typeof sessionList !== 'object' || !Array.isArray(sessionList.items)) {
+      throw new Error('Harness returned an invalid response for session.list');
+    }
+    const item = sessionList.items.find((entry) => entry?.sessionId === sessionId);
+    if (!item) return false;
+    if (typeof item.cwd === 'string' && item.cwd.trim()) return samePath(item.cwd);
+
+    const workspaceList = await this.rpc('workspace.list', {}, 30_000, options);
+    const workspace = workspaceFromList(wanted, workspaceList)
+      ?? (Array.isArray(workspaceList?.items)
+        ? workspaceList.items.find((entry) => samePath(entry?.path))
+        : null);
+    if (!workspace) return false;
+    return Array.isArray(workspace.sessionIds) && workspace.sessionIds.includes(sessionId);
   }
 
   async respondInteraction(rpcId, result, options = {}) {

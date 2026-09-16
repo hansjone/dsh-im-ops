@@ -6,6 +6,11 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ## [Unreleased]
 
+### Fixed / 修复
+
+- 发消息时若聊天绑定的 Session 不在机器人当前配置工作区，或 history 探针返回非「会话不存在」错误，自动解绑并按机器人工作区 / Agent Preset / 默认模型新建 Session，避免换工作区后幽灵绑定一直报 `HARNESS_SERVICE`。
+  When a chat’s bound Session is outside the bot’s configured workspace, or the history probe fails with a non-missing Host error, IM now clears the binding and creates a new Session using the bot workspace / Agent Preset / default model, instead of sticking on a zombie binding that surfaces as `HARNESS_SERVICE`.
+
 ### Changed / 变更
 
 - 机器人聊天文案（含 WhatsApp 访问审批）跟随 DeepSeek Harness 系统语言：打开 UI 或切换语言时通过 `host.language.set` 同步到 Host；无界面时仍可用 `language` / `DSH_IM_LANGUAGE` 作为启动默认值。
