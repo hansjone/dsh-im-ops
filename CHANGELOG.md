@@ -8,6 +8,9 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ### Fixed / 修复
 
+- Windows 下机器人工作区路径与 Host `workspace.list` 仅盘符/路径大小写不同（如 `D:\…` vs `d:\…`）时，不再因严格字符串匹配漏掉已有工作区而去 `workspace.create` / `session.create`，避免误报 `SESSION_CREATE`。
+  On Windows, when the bot workspace path differs from a Host `workspace.list` entry only by drive/path casing (e.g. `D:\…` vs `d:\…`), IM now reuses that workspace instead of missing it via exact string match and falling through to `workspace.create` / `session.create` (which surfaced as `SESSION_CREATE`).
+
 - `session.create` / `workspace.create` 的 Host `internal` 错误不再笼统显示 `HARNESS_SERVICE`：分别映射为 `SESSION_CREATE` / `WORKSPACE_UNAVAILABLE`，并写入 `%USERPROFILE%\\.dsh\\integrations\\dsh-im-ops\\last-message-failure.json`（含 method 与脱敏诊断），便于现场定位工作区路径问题。
   Host `internal` failures on `session.create` / `workspace.create` no longer collapse to generic `HARNESS_SERVICE`: they map to `SESSION_CREATE` / `WORKSPACE_UNAVAILABLE`, and write `%USERPROFILE%\\.dsh\\integrations\\dsh-im-ops\\last-message-failure.json` (method + redacted diagnostics) for field triage of workspace path issues.
 

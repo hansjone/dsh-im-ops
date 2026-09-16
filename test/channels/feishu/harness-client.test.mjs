@@ -594,6 +594,60 @@ test('HarnessClient reads the nested workspace.create response used by DSH rc.6'
   assert.deepEqual(methods, ['workspace.list', 'workspace.create']);
 });
 
+test('HarnessClient reuses Host workspaces when only Windows path casing differs', async (t) => {
+  if (process.platform !== 'win32') {
+    t.skip('Win32 path-case aliasing only applies on Windows');
+    return;
+  }
+
+  const methods = [];
+  t.mock.method(globalThis, 'fetch', async (_url, options) => {
+    const request = JSON.parse(options.body);
+    methods.push(request.method);
+    assert.notEqual(request.method, 'workspace.create');
+    const value = request.method === 'session.list'
+      ? {
+          items: [{
+            sessionId: 'session-one',
+            cwd: 'd:\\ai_code\\dsh',
+          }],
+        }
+      : {
+          items: [{
+            workspaceId: 'workspace-existing',
+            path: 'd:\\ai_code\\dsh',
+            sessionIds: ['session-one'],
+          }],
+          archivedSessionIds: [],
+        };
+    return {
+      ok: true,
+      async json() {
+        return {
+          type: 'server-response',
+          rpcId: request.rpcId,
+          result: { ok: true, value },
+        };
+      },
+    };
+  });
+
+  const client = new HarnessClient({
+    baseUrl: 'http://127.0.0.1:3080',
+    workspace: 'D:\\ai_code\\dsh',
+    agentPreset: 'standard',
+    autostart: false,
+    dshBin: 'dsh',
+  });
+
+  assert.equal(await client.workspaceId(), 'workspace-existing');
+  assert.deepEqual(methods, ['workspace.list']);
+  assert.equal(
+    await client.sessionBelongsToWorkspace('session-one', 'D:\\ai_code\\dsh'),
+    true,
+  );
+});
+
 test('HarnessClient asks do not control file-return tool availability', async () => {
   const client = new HarnessClient({
     baseUrl: 'http://127.0.0.1:3080',

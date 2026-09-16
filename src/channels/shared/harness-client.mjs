@@ -213,13 +213,34 @@ function workspacePaths(value) {
   ));
 }
 
+/**
+ * Windows treats drive/path casing as equivalent; Host may store `d:\…`
+ * while the bot UI persists `D:\…`. Match like Win32, not POSIX string equality.
+ */
+function sameWorkspacePath(left, right) {
+  if (typeof left !== 'string' || typeof right !== 'string') return false;
+  const wanted = left.trim();
+  const got = right.trim();
+  if (!wanted || !got) return false;
+  const a = resolve(wanted);
+  const b = resolve(got);
+  return process.platform === 'win32'
+    ? a.toLowerCase() === b.toLowerCase()
+    : a === b;
+}
+
+function findListedWorkspace(items, workspacePath) {
+  if (!Array.isArray(items)) return null;
+  return items.find((item) => sameWorkspacePath(item?.path, workspacePath)) ?? null;
+}
+
 function workspaceFromList(workspacePath, workspaceList) {
   if (!Array.isArray(workspaceList?.items)
     || !Array.isArray(workspaceList?.archivedSessionIds)) {
     throw new Error('Harness returned an invalid response for workspace.list');
   }
 
-  const workspace = workspaceList.items.find((item) => item?.path === workspacePath);
+  const workspace = findListedWorkspace(workspaceList.items, workspacePath);
   if (!workspace) return null;
   if (!Array.isArray(workspace.sessionIds)
     || workspace.sessionIds.some((sessionId) => typeof sessionId !== 'string')) {
@@ -910,7 +931,8 @@ export class HarnessClient {
   async workspaceId(options = {}) {
     const { workspace = this.#workspace, ...rpcOptions } = options;
     const { items } = await this.rpc('workspace.list', {}, 30_000, rpcOptions);
-    const existing = items.find((item) => item.path === workspace);
+    // Reuse Host's listed entry under Win32 path-case aliases (D: vs d:).
+    const existing = findListedWorkspace(items, workspace);
     if (existing) return existing.workspaceId;
     const created = await this.rpc('workspace.create', { path: workspace }, 30_000, rpcOptions);
     return created.workspace.workspaceId;
@@ -989,13 +1011,6 @@ export class HarnessClient {
     if (typeof sessionId !== 'string' || !sessionId) return false;
     if (typeof workspacePath !== 'string' || !workspacePath.trim()) return false;
     const wanted = resolve(workspacePath.trim());
-    const samePath = (value) => {
-      if (typeof value !== 'string' || !value.trim()) return false;
-      const got = resolve(value.trim());
-      return process.platform === 'win32'
-        ? got.toLowerCase() === wanted.toLowerCase()
-        : got === wanted;
-    };
 
     const sessionList = await this.rpc('session.list', {}, 30_000, options);
     if (!sessionList || typeof sessionList !== 'object' || !Array.isArray(sessionList.items)) {
@@ -1003,13 +1018,12 @@ export class HarnessClient {
     }
     const item = sessionList.items.find((entry) => entry?.sessionId === sessionId);
     if (!item) return false;
-    if (typeof item.cwd === 'string' && item.cwd.trim()) return samePath(item.cwd);
+    if (typeof item.cwd === 'string' && item.cwd.trim()) {
+      return sameWorkspacePath(item.cwd, wanted);
+    }
 
     const workspaceList = await this.rpc('workspace.list', {}, 30_000, options);
-    const workspace = workspaceFromList(wanted, workspaceList)
-      ?? (Array.isArray(workspaceList?.items)
-        ? workspaceList.items.find((entry) => samePath(entry?.path))
-        : null);
+    const workspace = workspaceFromList(wanted, workspaceList);
     if (!workspace) return false;
     return Array.isArray(workspace.sessionIds) && workspace.sessionIds.includes(sessionId);
   }
