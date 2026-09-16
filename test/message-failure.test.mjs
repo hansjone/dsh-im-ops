@@ -88,6 +88,12 @@ test('PI_AI_ERROR with TLS or transport wording maps to MODEL_TRANSPORT', () => 
 test('RPC internal and UNKNOWN provider codes no longer fall through to INTERNAL_UNKNOWN', () => {
   assert.equal(classifyMessageFailure({
     code: 'internal', method: 'session.create',
+  }, options).code, 'SESSION_CREATE');
+  assert.equal(classifyMessageFailure({
+    code: 'internal', method: 'workspace.create',
+  }, options).code, 'WORKSPACE_UNAVAILABLE');
+  assert.equal(classifyMessageFailure({
+    code: 'internal', method: 'session.prompt',
   }, options).code, 'HARNESS_SERVICE');
   assert.equal(classifyMessageFailure({
     code: 'harness-turn-failed', providerCode: 'UNKNOWN',
@@ -100,6 +106,15 @@ test('RPC internal and UNKNOWN provider codes no longer fall through to INTERNAL
   const plain = classifyMessageFailure(new Error('secret-shaped internal detail'), options);
   assert.equal(plain.code, 'INTERNAL_UNKNOWN');
   assert.equal(plain.reason, 'ERROR');
+});
+
+test('session.create failures tell operators to check the bot workspace path', () => {
+  const failure = classifyMessageFailure({
+    code: 'internal', method: 'session.create',
+  }, options);
+  assert.equal(failure.code, 'SESSION_CREATE');
+  assert.equal(failure.reason, 'SESSION_CREATE');
+  assert.match(failure.message, /工作区/);
 });
 
 test('message failure text contains a safe code and traceable reference', () => {

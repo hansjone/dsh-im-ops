@@ -8,6 +8,9 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ### Fixed / 修复
 
+- `session.create` / `workspace.create` 的 Host `internal` 错误不再笼统显示 `HARNESS_SERVICE`：分别映射为 `SESSION_CREATE` / `WORKSPACE_UNAVAILABLE`，并写入 `%USERPROFILE%\\.dsh\\integrations\\dsh-im-ops\\last-message-failure.json`（含 method 与脱敏诊断），便于现场定位工作区路径问题。
+  Host `internal` failures on `session.create` / `workspace.create` no longer collapse to generic `HARNESS_SERVICE`: they map to `SESSION_CREATE` / `WORKSPACE_UNAVAILABLE`, and write `%USERPROFILE%\\.dsh\\integrations\\dsh-im-ops\\last-message-failure.json` (method + redacted diagnostics) for field triage of workspace path issues.
+
 - 发消息时若聊天绑定的 Session 不在机器人当前配置工作区，或 history 探针返回非「会话不存在」错误，自动解绑并按机器人工作区 / Agent Preset / 默认模型新建 Session，避免换工作区后幽灵绑定一直报 `HARNESS_SERVICE`（含重建后的 Host/Client 产物 `lib/`）。
   When a chat’s bound Session is outside the bot’s configured workspace, or the history probe fails with a non-missing Host error, IM now clears the binding and creates a new Session using the bot workspace / Agent Preset / default model, instead of sticking on a zombie binding that surfaces as `HARNESS_SERVICE` (includes rebuilt Host/Client `lib/` artifacts).
 

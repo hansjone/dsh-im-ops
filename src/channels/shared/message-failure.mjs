@@ -92,6 +92,8 @@ const FAILURE_MESSAGES = Object.freeze({
     '机器人与 DeepSeek Harness 的接口不兼容。请管理员检查 Harness 地址并更新相关版本。',
   HARNESS_SERVICE:
     'DeepSeek Harness 暂时无法完成请求，请稍后重试。',
+  SESSION_CREATE:
+    '无法在当前工作区创建新会话。请检查机器人工作区是否为绝对路径、目录存在、且运行 Host 的账号可访问；改回可用工作区后重试。',
   MODEL_REPLY_TIMEOUT:
     '等待模型回复超时，任务可能仍在运行。请先等待或发送 /stop，不要立即重复提交。',
   MODEL_AUTH:
@@ -159,8 +161,13 @@ function providerFailureCode(error) {
   return mapped;
 }
 
+function rpcMethod(error) {
+  return typeof error?.method === 'string' ? error.method.trim() : '';
+}
+
 function failureCode(error) {
   const code = typeof error?.code === 'string' ? error.code : '';
+  const method = rpcMethod(error);
   const providerCode = providerFailureCode(error);
   if (providerCode) return providerCode;
 
@@ -168,12 +175,12 @@ function failureCode(error) {
   if (isTransportProviderMessage(providerErrorMessage(error))) return 'MODEL_TRANSPORT';
 
   if (code === 'harness-connect-failed') {
-    return ['session.prompt', 'session.history'].includes(error?.method)
+    return ['session.prompt', 'session.history'].includes(method)
       ? 'HARNESS_RESULT_UNCERTAIN'
       : 'HARNESS_CONNECT';
   }
   if (code === 'harness-timeout') {
-    return ['session.prompt', 'session.history'].includes(error?.method)
+    return ['session.prompt', 'session.history'].includes(method)
       ? 'HARNESS_RESULT_UNCERTAIN'
       : 'HARNESS_TIMEOUT';
   }
@@ -187,8 +194,15 @@ function failureCode(error) {
     return 'HARNESS_PROTOCOL';
   }
   if (code === 'harness-turn-failed') return 'INTERNAL_UNKNOWN';
-  // Host RPC catch-all (common when session/preset/workspace ops fail without a typed code).
+  // Host RPC catch-all — refine by method so field ops see workspace vs create vs generic.
   if (code === 'internal' || ['harness-http-failed', 'harness-rpc-rejected'].includes(code)) {
+    if (method === 'workspace.create' || method === 'workspace.list') {
+      return 'WORKSPACE_UNAVAILABLE';
+    }
+    if (method === 'session.create') return 'SESSION_CREATE';
+    if (method.startsWith('agent-preset') || method.includes('preset')) {
+      return 'PRESET_UNAVAILABLE';
+    }
     return 'HARNESS_SERVICE';
   }
   if (code === 'model-empty-response') return 'MODEL_EMPTY_REPLY';
@@ -235,7 +249,20 @@ function inferredFailureReason(error) {
     ?? safeFailureReason(error?.name);
 }
 
-async function persistInternalUnknownDiagnostic(failure, error) {
+const PERSISTED_FAILURE_CODES = new Set([
+  'INTERNAL_UNKNOWN',
+  'HARNESS_SERVICE',
+  'SESSION_CREATE',
+  'WORKSPACE_UNAVAILABLE',
+  'PRESET_UNAVAILABLE',
+  'HARNESS_CONNECT',
+  'HARNESS_TIMEOUT',
+  'HARNESS_ACCESS',
+  'HARNESS_PROTOCOL',
+  'MODEL_TRANSPORT',
+]);
+
+async function persistMessageFailureDiagnostic(failure, error) {
   try {
     const dir = join(homedir(), '.dsh', 'integrations', 'dsh-im-ops');
     await mkdir(dir, { recursive: true });
@@ -251,10 +278,18 @@ async function persistInternalUnknownDiagnostic(failure, error) {
       messages: diagnosticMessages(error).map((text) => text.slice(0, 240)),
     };
     await writeFile(
-      join(dir, 'last-internal-unknown.json'),
+      join(dir, 'last-message-failure.json'),
       `${JSON.stringify(payload, null, 2)}\n`,
       { encoding: 'utf8', mode: 0o600 },
     );
+    // Keep the legacy filename for INTERNAL_UNKNOWN so older runbooks still work.
+    if (failure.code === 'INTERNAL_UNKNOWN') {
+      await writeFile(
+        join(dir, 'last-internal-unknown.json'),
+        `${JSON.stringify(payload, null, 2)}\n`,
+        { encoding: 'utf8', mode: 0o600 },
+      );
+    }
   } catch {
     // Diagnostics must never mask the user-facing failure path.
   }
@@ -285,9 +320,10 @@ export function classifyMessageFailure(error, {
     && userMessage.trim()
     ? 'INPUT_INVALID'
     : classifiedCode;
+  const methodReason = safeFailureReason(rpcMethod(error)?.replaceAll('.', '_'));
   const safeReason = code === 'INTERNAL_UNKNOWN'
     ? (explicitReason ?? inferredFailureReason(error) ?? code)
-    : (explicitReason ?? code);
+    : (explicitReason ?? methodReason ?? code);
   return Object.freeze({
     code,
     reason: safeReason,
@@ -306,8 +342,8 @@ export function messageFailureText(failure) {
 export function setLastMessageFailure(status, error, options) {
   const failure = classifyMessageFailure(error, options);
   status.lastMessageError = failure;
-  if (failure.code === 'INTERNAL_UNKNOWN') {
-    void persistInternalUnknownDiagnostic(failure, error);
+  if (PERSISTED_FAILURE_CODES.has(failure.code)) {
+    void persistMessageFailureDiagnostic(failure, error);
   }
   return failure;
 }
