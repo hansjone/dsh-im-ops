@@ -648,6 +648,47 @@ test('HarnessClient reuses Host workspaces when only Windows path casing differs
   );
 });
 
+test('HarnessClient retries session.create without agentPreset after preset/internal failure', async () => {
+  const client = new HarnessClient({
+    baseUrl: 'http://127.0.0.1:3080',
+    workspace: '/tmp/dsh-feishu-workspace',
+    agentPreset: 'broken-preset',
+    autostart: false,
+    dshBin: 'dsh',
+  });
+  const creates = [];
+  client.ensureRunning = async () => undefined;
+  client.rpc = async (method, payload) => {
+    if (method === 'workspace.list') {
+      return {
+        items: [{
+          workspaceId: 'workspace-one',
+          path: '/tmp/dsh-feishu-workspace',
+          sessionIds: [],
+        }],
+        archivedSessionIds: [],
+      };
+    }
+    if (method === 'session.create') {
+      creates.push(payload);
+      if (payload.agentPreset) {
+        const error = new Error('agent-presets: preset "broken-preset" not found');
+        error.code = 'agent-preset/not-found';
+        error.method = 'session.create';
+        throw error;
+      }
+      return { sessionId: 'session-recovered' };
+    }
+    throw new Error(`unexpected method ${method}`);
+  };
+
+  assert.equal(await client.createSession(), 'session-recovered');
+  assert.deepEqual(creates, [
+    { workspaceId: 'workspace-one', agentPreset: 'broken-preset' },
+    { workspaceId: 'workspace-one' },
+  ]);
+});
+
 test('HarnessClient asks do not control file-return tool availability', async () => {
   const client = new HarnessClient({
     baseUrl: 'http://127.0.0.1:3080',

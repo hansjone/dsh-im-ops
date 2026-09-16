@@ -117,6 +117,28 @@ test('session.create failures tell operators to check the bot workspace path', (
   assert.match(failure.message, /工作区/);
 });
 
+test('Host branded gateway/internal on session.create maps to SESSION_CREATE', () => {
+  assert.equal(classifyMessageFailure({
+    code: 'gateway/internal', method: 'session.create',
+    message: 'failed to create session "session-x": Error: boom',
+  }, options).code, 'SESSION_CREATE');
+});
+
+test('Host branded workspace/invalid-path maps to WORKSPACE_UNAVAILABLE', () => {
+  assert.equal(classifyMessageFailure({
+    code: 'workspace/invalid-path', method: 'workspace.create',
+    message: 'cannot create a Workspace at "D:\\\\missing": ENOENT',
+    details: { path: 'D:\\missing' },
+  }, options).code, 'WORKSPACE_UNAVAILABLE');
+});
+
+test('Host branded agent-preset/not-found maps to PRESET_UNAVAILABLE', () => {
+  assert.equal(classifyMessageFailure({
+    code: 'agent-preset/not-found', method: 'session.create',
+    details: { agentPreset: 'gone' },
+  }, options).code, 'PRESET_UNAVAILABLE');
+});
+
 test('message failure text contains a safe code and traceable reference', () => {
   const failure = classifyMessageFailure(new Error('secret-shaped internal detail'), options);
   assert.deepEqual(failure, {

@@ -8,6 +8,12 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ### Fixed / 修复
 
+- Host 带斜杠的错误码（如 `gateway/internal`、`workspace/invalid-path`、`agent-preset/not-found`）现在会正确映射为 `SESSION_CREATE` / `WORKSPACE_UNAVAILABLE` / `PRESET_UNAVAILABLE`；`last-message-failure.json` 额外写入 workspace、Host details 与脱敏 message，便于现场对上真实 RPC。
+  Host slash-branded failure codes (e.g. `gateway/internal`, `workspace/invalid-path`, `agent-preset/not-found`) now map to `SESSION_CREATE` / `WORKSPACE_UNAVAILABLE` / `PRESET_UNAVAILABLE`; `last-message-failure.json` also records workspace, Host details, and redacted messages for field triage.
+
+- `session.create` 在 Agent Preset 失败或 Host `internal` 时会自动去掉该 preset 重试一次，避免坏的成员/机器人预设覆盖把首次建会话永久卡死；工作区路径匹配进一步用 `realpath`（存在时）对齐 Host 规范路径。
+  `session.create` now retries once without the Agent Preset after preset failures or Host `internal`, so a bad member/bot preset override cannot permanently block first Session creation; workspace path matching also prefers `realpath` when the directory exists, matching Host canonicalization.
+
 - Windows 下机器人工作区路径与 Host `workspace.list` 仅盘符/路径大小写不同（如 `D:\…` vs `d:\…`）时，不再因严格字符串匹配漏掉已有工作区而去 `workspace.create` / `session.create`，避免误报 `SESSION_CREATE`。
   On Windows, when the bot workspace path differs from a Host `workspace.list` entry only by drive/path casing (e.g. `D:\…` vs `d:\…`), IM now reuses that workspace instead of missing it via exact string match and falling through to `workspace.create` / `session.create` (which surfaced as `SESSION_CREATE`).
 

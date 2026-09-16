@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { existsSync, realpathSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
 
 import { adoptRegisteredWorkspaceSession } from './harness-session-binding.mjs';
@@ -214,19 +215,44 @@ function workspacePaths(value) {
 }
 
 /**
- * Windows treats drive/path casing as equivalent; Host may store `d:\…`
- * while the bot UI persists `D:\…`. Match like Win32, not POSIX string equality.
+ * Canonicalize for Host workspace identity: prefer realpath when the directory
+ * exists (matches Host `realpathNormalize`), else resolved spelling. Win32 also
+ * folds drive/path casing so `D:\…` and `d:\…` collide the same way Host does.
  */
+function canonicalWorkspacePath(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const resolved = resolve(trimmed);
+  try {
+    if (existsSync(resolved)) return realpathSync(resolved);
+  } catch {
+    // Fall through to the resolved spelling when realpath is unavailable.
+  }
+  return resolved;
+}
+
 function sameWorkspacePath(left, right) {
-  if (typeof left !== 'string' || typeof right !== 'string') return false;
-  const wanted = left.trim();
-  const got = right.trim();
-  if (!wanted || !got) return false;
-  const a = resolve(wanted);
-  const b = resolve(got);
+  const a = canonicalWorkspacePath(left);
+  const b = canonicalWorkspacePath(right);
+  if (!a || !b) return false;
   return process.platform === 'win32'
     ? a.toLowerCase() === b.toLowerCase()
     : a === b;
+}
+
+function isPresetCreateFailure(error) {
+  const code = typeof error?.code === 'string' ? error.code : '';
+  return code.startsWith('agent-preset/') || code.startsWith('agent-preset-');
+}
+
+function isInternalCreateFailure(error) {
+  const code = typeof error?.code === 'string' ? error.code : '';
+  return code === 'internal'
+    || code === 'gateway/internal'
+    || code.endsWith('/internal')
+    || code === 'harness-http-failed'
+    || code === 'harness-rpc-rejected';
 }
 
 function findListedWorkspace(items, workspacePath) {
@@ -939,14 +965,60 @@ export class HarnessClient {
   }
 
   async createSession(options = {}) {
-    const { agentPreset: requestedPreset, ...rpcOptions } = options;
+    const { agentPreset: requestedPreset, workspace, ...rpcOptions } = options;
     await this.ensureRunning(rpcOptions);
-    const workspaceId = await this.workspaceId(rpcOptions);
+    const workspacePath = typeof workspace === 'string' && workspace.trim()
+      ? workspace.trim()
+      : this.#workspace;
+    const workspaceId = await this.workspaceId({
+      ...rpcOptions,
+      ...(workspacePath ? { workspace: workspacePath } : {}),
+    });
     const payload = { workspaceId };
     const agentPreset = requestedPreset !== undefined ? requestedPreset : this.#agentPreset;
     if (agentPreset != null) payload.agentPreset = agentPreset;
-    const created = await this.rpc('session.create', payload, 30_000, rpcOptions);
-    return created.sessionId;
+    const annotate = (error) => {
+      if (error && typeof error === 'object') {
+        if (workspacePath) error.workspace = workspacePath;
+        if (error.details == null || typeof error.details !== 'object') {
+          error.details = { workspaceId };
+        } else if (!Object.hasOwn(error.details, 'workspaceId')) {
+          error.details = { ...error.details, workspaceId };
+        }
+        if (payload.agentPreset && !Object.hasOwn(error.details, 'agentPreset')) {
+          error.details = { ...error.details, agentPreset: payload.agentPreset };
+        }
+      }
+      return error;
+    };
+    try {
+      const created = await this.rpc('session.create', payload, 30_000, rpcOptions);
+      return created.sessionId;
+    } catch (error) {
+      // Broken per-chat/bot presets often surface as Host internal on create.
+      // Retry once without the preset so a bad override does not block the chat.
+      if (
+        payload.agentPreset
+        && (isPresetCreateFailure(error) || isInternalCreateFailure(error))
+      ) {
+        console.warn(
+          `[${this.#logPrefix}] session.create failed with agentPreset `
+          + `${payload.agentPreset} (${error?.code ?? 'unknown'}); retrying without preset`,
+        );
+        try {
+          const created = await this.rpc(
+            'session.create',
+            { workspaceId },
+            30_000,
+            rpcOptions,
+          );
+          return created.sessionId;
+        } catch (retryError) {
+          throw annotate(retryError);
+        }
+      }
+      throw annotate(error);
+    }
   }
 
   async renameSession(sessionId, title, options = {}) {

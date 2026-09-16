@@ -165,6 +165,23 @@ function rpcMethod(error) {
   return typeof error?.method === 'string' ? error.method.trim() : '';
 }
 
+/** Host branded codes use `family/name`; older builds may emit bare `internal`. */
+function isHostInternalCode(code) {
+  return code === 'internal'
+    || code === 'gateway/internal'
+    || code.endsWith('/internal');
+}
+
+function isHostWorkspaceCode(code) {
+  return code.startsWith('workspace/')
+    || code.startsWith('workspace-');
+}
+
+function isHostPresetCode(code) {
+  return code.startsWith('agent-preset/')
+    || code.startsWith('agent-preset-');
+}
+
 function failureCode(error) {
   const code = typeof error?.code === 'string' ? error.code : '';
   const method = rpcMethod(error);
@@ -194,8 +211,16 @@ function failureCode(error) {
     return 'HARNESS_PROTOCOL';
   }
   if (code === 'harness-turn-failed') return 'INTERNAL_UNKNOWN';
-  // Host RPC catch-all — refine by method so field ops see workspace vs create vs generic.
-  if (code === 'internal' || ['harness-http-failed', 'harness-rpc-rejected'].includes(code)) {
+  // Branded Host failures (slash codes) before the generic internal catch-all.
+  if (isHostPresetCode(code)) return 'PRESET_UNAVAILABLE';
+  if (isHostWorkspaceCode(code)) return 'WORKSPACE_UNAVAILABLE';
+  if (code === 'session/workspace-attach-failed' || code === 'session/conflict') {
+    return 'SESSION_CREATE';
+  }  // Host RPC catch-all — refine by method so field ops see workspace vs create vs generic.
+  if (
+    isHostInternalCode(code)
+    || ['harness-http-failed', 'harness-rpc-rejected'].includes(code)
+  ) {
     if (method === 'workspace.create' || method === 'workspace.list') {
       return 'WORKSPACE_UNAVAILABLE';
     }
@@ -212,8 +237,6 @@ function failureCode(error) {
   if (MISSING_SESSION_CODES.has(code)) return 'SESSION_NOT_FOUND';
   if (code === 'agent-busy') return 'SESSION_BUSY';
   if (code === 'workspace-session-stale') return 'SESSION_STALE';
-  if (code.startsWith('workspace-')) return 'WORKSPACE_UNAVAILABLE';
-  if (code.startsWith('agent-preset-')) return 'PRESET_UNAVAILABLE';
   if (code.startsWith('image-') || code.startsWith('inbound-file-')
     || code === 'attachment-error') return 'INPUT_INVALID';
 
@@ -262,10 +285,39 @@ const PERSISTED_FAILURE_CODES = new Set([
   'MODEL_TRANSPORT',
 ]);
 
+function redactedDetail(value, { max = 160 } = {}) {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed ? trimmed.slice(0, max) : null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'boolean') return value;
+  return null;
+}
+
+function diagnosticDetails(error) {
+  const details = error?.details;
+  if (!details || typeof details !== 'object' || Array.isArray(details)) return null;
+  const out = {};
+  for (const key of [
+    'path', 'workspaceId', 'sessionId', 'agentPreset', 'requestedPreset',
+    'existingPreset', 'requestedCwd', 'existingCwd', 'reason', 'name',
+  ]) {
+    if (!Object.hasOwn(details, key)) continue;
+    const value = redactedDetail(details[key]);
+    if (value != null) out[key] = value;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 async function persistMessageFailureDiagnostic(failure, error) {
   try {
     const dir = join(homedir(), '.dsh', 'integrations', 'dsh-im-ops');
     await mkdir(dir, { recursive: true });
+    const details = diagnosticDetails(error);
+    const workspaceHint = typeof error?.workspace === 'string'
+      ? redactedDetail(error.workspace, { max: 240 })
+      : null;
     const payload = {
       at: new Date(failure.at).toISOString(),
       referenceId: failure.referenceId,
@@ -275,6 +327,8 @@ async function persistMessageFailureDiagnostic(failure, error) {
       errorCode: typeof error?.code === 'string' ? error.code.slice(0, 80) : null,
       providerCode: typeof error?.providerCode === 'string' ? error.providerCode.slice(0, 80) : null,
       method: typeof error?.method === 'string' ? error.method.slice(0, 80) : null,
+      workspace: workspaceHint,
+      ...(details ? { details } : {}),
       messages: diagnosticMessages(error).map((text) => text.slice(0, 240)),
     };
     await writeFile(
