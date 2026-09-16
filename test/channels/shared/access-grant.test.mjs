@@ -16,6 +16,7 @@ import {
   resolveAccessPending,
   upsertAccessContact,
   resolveAccessAgentPreset,
+  resolveChatAgentPreset,
   validateAccessGrant,
 } from '../../../src/channels/shared/access-grant.mjs';
 
@@ -233,7 +234,7 @@ test('quote approval helpers parse intent, pending id, and notify refs', () => {
 });
 
 
-test('resolveAccessAgentPreset prefers direct-member and group overrides over global', () => {
+test('resolveAccessAgentPreset prefers direct-member and group overrides over channel mapping', () => {
   const doc = grant({
     directMembers: [
       { phone: '8618222222222', canExecuteCommands: true, agentPreset: 'ops-user' },
@@ -264,6 +265,31 @@ test('resolveAccessAgentPreset prefers direct-member and group overrides over gl
     kind: 'group',
     groupJid: GROUP_B,
   }), null);
+});
+
+test('resolveChatAgentPreset falls back to bot/channel mapping, not Host global', () => {
+  const doc = grant({
+    directMembers: [
+      { phone: '8618222222222', canExecuteCommands: true, agentPreset: 'ops-user' },
+      { phone: '8618333333333', canExecuteCommands: true },
+    ],
+  });
+  assert.equal(resolveChatAgentPreset(doc, {
+    kind: 'direct',
+    phone: '8618222222222',
+  }, 'wa-mapped'), 'ops-user');
+  assert.equal(resolveChatAgentPreset(doc, {
+    kind: 'direct',
+    phone: '8618333333333',
+  }, 'wa-mapped'), 'wa-mapped');
+  assert.equal(resolveChatAgentPreset(doc, {
+    kind: 'direct',
+    phone: '8618333333333',
+  }, null), null);
+  assert.equal(resolveChatAgentPreset(null, {
+    kind: 'direct',
+    phone: '8618333333333',
+  }, 'wa-mapped'), 'wa-mapped');
 });
 
 test('validateAccessGrant keeps optional agentPreset on members and groups', () => {

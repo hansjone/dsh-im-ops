@@ -1,4 +1,4 @@
-import { normalizeAccessPhone, phoneFromWhatsappJid, resolveAccessAgentPreset } from './access-grant.mjs';
+import { normalizeAccessPhone, phoneFromWhatsappJid, resolveChatAgentPreset } from './access-grant.mjs';
 
 /**
  * Parse a durable conversation binding key into chat identity fields.
@@ -118,14 +118,13 @@ export function resolveChannelPeerFromBinding(input) {
   const botAgentPreset = typeof input.botAgentPreset === 'string' ? input.botAgentPreset.trim() : '';
 
   const withPreset = (peer) => {
-    const fromGrant = resolveAccessAgentPreset(grant, {
+    const agentPreset = resolveChatAgentPreset(grant, {
       kind: peer.kind === 'group' ? 'group' : 'direct',
       groupJid: peer.kind === 'group' ? peer.conversationId : undefined,
       conversationId: peer.conversationId,
       phone: peer.phone,
       senderId: peer.senderId || peer.phone,
-    });
-    const agentPreset = fromGrant || botAgentPreset || null;
+    }, botAgentPreset);
     return Object.freeze({ ...peer, agentPreset });
   };
 

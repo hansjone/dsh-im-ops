@@ -224,7 +224,7 @@ function AgentPresetSelect({
     'aria-label': ariaLabel,
     onChange: (event) => onChange(event.target.value || ''),
   },
-  h('option', { value: '' }, '跟随全局'),
+  h('option', { value: '' }, localizeText('跟随频道映射')),
   ...items.map((item) => h('option', {
     key: item.id,
     value: item.id,

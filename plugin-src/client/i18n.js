@@ -14,6 +14,7 @@ const EN = Object.freeze({
   '渠道用户': 'Channel user',
   "（不可用）": " (unavailable)",
   "群 Agent Preset": "Group Agent Preset",
+  "跟随频道映射": "Follow channel mapping",
   "跟随全局": "Follow global",
   "—": "—",
   "来源": "Source",

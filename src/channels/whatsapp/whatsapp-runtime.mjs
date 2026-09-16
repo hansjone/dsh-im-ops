@@ -7,7 +7,7 @@ import {
   normalizeMessageContent,
 } from '@whiskeysockets/baileys';
 
-import { emptyAccessGrant, ensureGroupBucket, normalizeAccessPhone, phoneFromWhatsappJid, resolveAccessAgentPreset } from '../shared/access-grant.mjs';
+import { emptyAccessGrant, ensureGroupBucket, normalizeAccessPhone, phoneFromWhatsappJid, resolveChatAgentPreset } from '../shared/access-grant.mjs';
 import { splitMessageText } from '../shared/editable-message-stream.mjs';
 import { t } from '../shared/i18n.mjs';
 import { ImagePromptError } from '../shared/image-prompt.mjs';
@@ -833,7 +833,8 @@ export class WhatsappRuntime {
         resolveAgentPreset: (message) => {
           if (!this.#workspaces || !this.#botId) return null;
           const grant = this.#workspaces.accessGrantFor(this.#botId);
-          return resolveAccessAgentPreset(grant, {
+          // Member/group override, else WhatsApp workspace mapping — never Host global.
+          return resolveChatAgentPreset(grant, {
             kind: message?.kind === 'group' ? 'group' : 'direct',
             groupJid: message?.conversationId,
             conversationId: message?.conversationId,
@@ -842,7 +843,7 @@ export class WhatsappRuntime {
               ?? phoneFromWhatsappJid(message?.senderAlternateId)
               ?? normalizeAccessPhone(message?.senderAlternateId),
             senderId: message?.senderId,
-          });
+          }, this.#workspaces.agentPresetFor(this.#botId));
         },
       });
       const now = Date.now();

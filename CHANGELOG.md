@@ -8,6 +8,9 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ### Fixed / 修复
 
+- WhatsApp 成员/群 Agent Preset 空值（UI 原「跟随全局」）现在明确回落到**频道工作区映射预设**，不再让人误以为跟 Host 全局默认；设置页文案改为「跟随频道映射」。`/new` 后建会话也会带上该映射，避免改 Host 全局预设后误用坏默认导致 `SESSION_CREATE`。
+  Empty WhatsApp member/group Agent Preset (UI formerly “Follow global”) now clearly falls back to the **channel workspace mapping preset**, not the Host catalog default; settings copy is “Follow channel mapping”. `/new` session creation also carries that mapping so a broken Host global default after operators change it does not surface as `SESSION_CREATE`.
+
 - Host 带斜杠的错误码（如 `gateway/internal`、`workspace/invalid-path`、`agent-preset/not-found`）现在会正确映射为 `SESSION_CREATE` / `WORKSPACE_UNAVAILABLE` / `PRESET_UNAVAILABLE`；`last-message-failure.json` 额外写入 workspace、Host details 与脱敏 message，便于现场对上真实 RPC。
   Host slash-branded failure codes (e.g. `gateway/internal`, `workspace/invalid-path`, `agent-preset/not-found`) now map to `SESSION_CREATE` / `WORKSPACE_UNAVAILABLE` / `PRESET_UNAVAILABLE`; `last-message-failure.json` also records workspace, Host details, and redacted messages for field triage.
 

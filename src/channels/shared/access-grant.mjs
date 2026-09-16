@@ -310,8 +310,9 @@ export function normalizeAccessGrant(input) {
 
 /**
  * Resolve a chat-scoped Agent Preset override from the access grant.
- * Returns null when the chat should follow the bot-level (global) preset.
- * Priority: direct-member or group override > bot global (caller applies global).
+ * Returns null when the chat should follow the bot/channel mapping preset
+ * (workspaces.agentPresets[botId]), not the Host catalog default.
+ * Priority: direct-member or group override > bot mapping (caller applies).
  * @param {unknown} grant
  * @param {{ kind?: string, phone?: string, senderId?: string, groupJid?: string, conversationId?: string }} [context]
  * @returns {string|null}
@@ -330,6 +331,25 @@ export function resolveAccessAgentPreset(grant, context = {}) {
   if (!phone) return null;
   const member = doc.directMembers.find((entry) => entry.phone === phone);
   return normalizeOptionalAgentPresetId(member?.agentPreset) ?? null;
+}
+
+/**
+ * Member/group override, else the bot's workspace-mapped preset.
+ * Does not fall through to Host catalog default — that is only used when the
+ * bot mapping itself is empty (createSession omits agentPreset).
+ * @param {unknown} grant
+ * @param {{ kind?: string, phone?: string, senderId?: string, groupJid?: string, conversationId?: string }} [context]
+ * @param {string|null|undefined} botAgentPreset
+ * @returns {string|null}
+ */
+export function resolveChatAgentPreset(grant, context = {}, botAgentPreset = null) {
+  const fromGrant = resolveAccessAgentPreset(grant, context);
+  if (fromGrant) return fromGrant;
+  if (typeof botAgentPreset === 'string') {
+    const trimmed = botAgentPreset.trim();
+    if (trimmed) return trimmed;
+  }
+  return null;
 }
 
 /**
