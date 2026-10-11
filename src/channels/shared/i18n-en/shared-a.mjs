@@ -41,12 +41,14 @@ export default {
     'Task progress is temporarily unavailable and the task may still be running. Wait or send /stop before submitting it again.',
   '处理服务拒绝了机器人连接。请管理员检查 Harness 地址、代理或访问配置后重试。':
     'The processing service rejected the bot connection. Ask an administrator to check the Harness address, proxy, or access settings.',
+  'Host 认证插件拒绝了机器人后台请求。请管理员检查认证插件与 IM 的后台调用集成后重试。':
+    'The Host authentication plugin rejected the bot background request. Ask an administrator to check the authentication plugin integration with IM background operations.',
   '机器人与 DeepSeek Harness 的接口不兼容。请管理员检查 Harness 地址并更新相关版本。':
     'The bot and DeepSeek Harness use incompatible APIs. Ask an administrator to check the Harness address and update the related components.',
   'DeepSeek Harness 暂时无法完成请求，请稍后重试。':
     'DeepSeek Harness could not complete the request. Please try again later.',
-  '无法在当前工作区创建新会话。请检查机器人工作区是否为绝对路径、目录存在、且运行 Host 的账号可访问；改回可用工作区后重试。':
-    'Could not create a new Session in the current workspace. Check that the bot workspace is an absolute path, the directory exists, and the Host process can access it; then switch back to a working workspace and retry.',
+  '无法创建新会话。请管理员根据参考号检查 Host 日志，确认工作区、Agent Preset 和认证配置后重试。':
+    'Could not create a new Session. Ask an administrator to use the reference ID to check Host logs and verify the workspace, Agent Preset, and authentication settings.',
   '等待模型回复超时，任务可能仍在运行。请先等待或发送 /stop，不要立即重复提交。':
     'Waiting for the model reply timed out and the task may still be running. Wait or send /stop before submitting it again.',
   '模型凭据缺失或已失效。请管理员检查模型配置后重试。':

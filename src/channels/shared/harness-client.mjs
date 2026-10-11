@@ -246,15 +246,6 @@ function isPresetCreateFailure(error) {
   return code.startsWith('agent-preset/') || code.startsWith('agent-preset-');
 }
 
-function isInternalCreateFailure(error) {
-  const code = typeof error?.code === 'string' ? error.code : '';
-  return code === 'internal'
-    || code === 'gateway/internal'
-    || code.endsWith('/internal')
-    || code === 'harness-http-failed'
-    || code === 'harness-rpc-rejected';
-}
-
 function findListedWorkspace(items, workspacePath) {
   if (!Array.isArray(items)) return null;
   return items.find((item) => sameWorkspacePath(item?.path, workspacePath)) ?? null;
@@ -682,6 +673,7 @@ function harnessTurnSucceeded(reason) {
 export class HarnessClient {
   #baseUrl;
   #apiProxy;
+  #runHostOperation;
   #workspace;
   #agentPreset;
   #autostart;
@@ -704,6 +696,7 @@ export class HarnessClient {
   constructor({
     baseUrl,
     apiProxy,
+    runHostOperation = (operation) => operation(),
     interactionScope = apiProxy,
     workspace,
     agentPreset,
@@ -746,6 +739,8 @@ export class HarnessClient {
     }
     this.#baseUrl = baseUrl === undefined ? null : new URL(baseUrl);
     this.#apiProxy = this.#baseUrl ? null : apiProxy;
+    if (typeof runHostOperation !== 'function') throw new TypeError('runHostOperation must be a function');
+    this.#runHostOperation = runHostOperation;
     if (!this.#baseUrl && (!this.#apiProxy || typeof this.#apiProxy !== 'object')) {
       throw new TypeError('HarnessClient requires the current Host apiProxy or an explicit baseUrl');
     }
@@ -789,7 +784,9 @@ export class HarnessClient {
           || typeof api[action] !== 'function') {
           throw new HarnessTransportError('harness-api-not-found', method);
         }
-        const response = await callWithSignal(() => api[action]({ rpcId, payload }, signal), signal);
+        const response = await callWithSignal(() => this.#runHostOperation(
+          () => api[action]({ rpcId, payload }, signal),
+        ), signal);
         body = { type: 'server-response', ...response };
       } else {
         const response = await this.#fetch(new URL(`/api/${method}`, this.#baseUrl), {
@@ -995,12 +992,9 @@ export class HarnessClient {
       const created = await this.rpc('session.create', payload, 30_000, rpcOptions);
       return created.sessionId;
     } catch (error) {
-      // Broken per-chat/bot presets often surface as Host internal on create.
-      // Retry once without the preset so a bad override does not block the chat.
-      if (
-        payload.agentPreset
-        && (isPresetCreateFailure(error) || isInternalCreateFailure(error))
-      ) {
+      // Only a verified preset failure permits a different preset. Generic
+      // failures may be ACL rejections or an already-created Session.
+      if (payload.agentPreset && isPresetCreateFailure(error)) {
         console.warn(
           `[${this.#logPrefix}] session.create failed with agentPreset `
           + `${payload.agentPreset} (${error?.code ?? 'unknown'}); retrying without preset`,
@@ -1112,7 +1106,9 @@ export class HarnessClient {
     const envelope = { type: 'client-response', rpcId, result };
     let receipt;
     if (this.#apiProxy) {
-      receipt = await callWithSignal(() => this.#apiProxy.respond(envelope), signal);
+      receipt = await callWithSignal(() => this.#runHostOperation(
+        () => this.#apiProxy.respond(envelope),
+      ), signal);
     } else {
       const response = await this.#fetch(new URL('/api/respond', this.#baseUrl), {
         method: 'POST',
@@ -1866,6 +1862,7 @@ export class HarnessClient {
   #watchMux(options) {
     return watchHarnessMux({
       apiProxy: this.#apiProxy,
+      runHostOperation: this.#runHostOperation,
       baseUrl: this.#baseUrl,
       createWebSocket: this.#createWebSocket,
       rpcId: `${this.#rpcIdPrefix}-${randomUUID()}`,

@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import {
+  ACCESS_GRANT_GROUP_JID_PATTERN,
   normalizeAccessGrant,
   normalizeAccessPhone,
   validateAccessGrant,
@@ -21,6 +22,22 @@ export const ACCESS_GRANT_ENDPOINT = 'bot.access-grant.set';
 export const ACCESS_PENDING_RESOLVE_ENDPOINT = 'bot.access-pending.resolve';
 export const ACCESS_GROUP_TITLES_REFRESH_ENDPOINT = 'bot.access-group-titles.refresh';
 export const GROUP_SESSION_SCOPE_ENDPOINT = 'bot.group-session-scope.set';
+
+const ACCESS_SECTIONS = [
+  { id: 'direct', label: '私聊与管理员' },
+  { id: 'groups', label: '群授权' },
+  { id: 'contacts', label: '最近联系人' },
+  { id: 'pending', label: '待审批' },
+];
+
+function configurationKey(grant, scope) {
+  return JSON.stringify({
+    globalAdmins: grant.globalAdmins,
+    directMembers: grant.directMembers,
+    groups: grant.groups,
+    groupSessionScope: scope,
+  });
+}
 
 function unwrapRpcResult(result) {
   if (result?.ok === true) return result.value;
@@ -152,7 +169,7 @@ function PhoneTypeahead({
         return false;
       }
       if (!q) return Boolean(contact.phone);
-      return (contact.phone ?? '').includes(queryDigits)
+      return (queryDigits.length > 0 && (contact.phone ?? '').includes(queryDigits))
         || (contact.pushName ?? '').toLowerCase().includes(q);
     })
     .slice(0, 8);
@@ -395,29 +412,51 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
   }
   const ownerPhone = ownerPhoneFromAccount(account);
   const initialGrant = normalizeAccessGrant(account?.accessGrant);
-  const initialKey = JSON.stringify(initialGrant);
   const initialScope = normalizeGroupSessionScope(account?.groupSessionScope);
   const [draft, setDraft] = React.useState(() => cloneGrant(initialGrant, ownerPhone));
   const [groupSessionScope, setGroupSessionScope] = React.useState(initialScope);
+  const [baseline, setBaseline] = React.useState(() => ({
+    grant: cloneGrant(initialGrant, ownerPhone), scope: initialScope,
+  }));
+  const [activeSection, setActiveSection] = React.useState('direct');
+  const [groupQuery, setGroupQuery] = React.useState('');
+  const [contactQuery, setContactQuery] = React.useState('');
+  const [contactLimit, setContactLimit] = React.useState(30);
+  const sectionId = React.useId();
+  const sectionButtons = React.useRef({});
   const [saving, setSaving] = React.useState(false);
   const [feedback, setFeedback] = React.useState(null);
+  const editDraft = React.useCallback(update => {
+    setDraft(update);
+    setFeedback(null);
+  }, []);
   const [newGroupJid, setNewGroupJid] = React.useState('');
   const [loadingGrant, setLoadingGrant] = React.useState(!initialGrant);
+  const [grantReady, setGrantReady] = React.useState(Boolean(initialGrant));
   const contextCatalog = React.useContext(AgentPresetCatalogContext);
   const [presetCatalog, setPresetCatalog] = React.useState(() => normalizeAgentPresetCatalog(
     account?.agentPresetCatalog ?? contextCatalog ?? EMPTY_AGENT_PRESET_CATALOG,
   ));
 
-  React.useEffect(() => {
-    setDraft(cloneGrant(normalizeAccessGrant(account?.accessGrant), ownerPhone));
-    setGroupSessionScope(normalizeGroupSessionScope(account?.groupSessionScope));
-  }, [account?.botId, initialKey, account?.groupSessionScope, ownerPhone]);
+  const replaceSaved = React.useCallback((grant, scope) => {
+    const next = cloneGrant(grant, ownerPhone);
+    setDraft(next);
+    setGroupSessionScope(scope);
+    setBaseline({ grant: cloneGrant(grant, ownerPhone), scope });
+    setGrantReady(Boolean(grant));
+  }, [ownerPhone]);
 
   // Settings open payload historically omitted accessGrant; always refresh from status.
   React.useEffect(() => {
     if (typeof rpcCall !== 'function' || !account?.botId) return undefined;
     let cancelled = false;
+    replaceSaved(initialGrant, initialScope);
     setLoadingGrant(true);
+    setFeedback(null);
+    setActiveSection('direct');
+    setGroupQuery('');
+    setContactQuery('');
+    setContactLimit(30);
     void (async () => {
       try {
         const value = unwrapRpcResult(await rpcCall('connection.status', {}));
@@ -428,14 +467,11 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
         const bot = Array.isArray(value?.bots)
           ? value.bots.find((entry) => entry?.botId === account.botId)
           : null;
-        let grant = normalizeAccessGrant(bot?.accessGrant);
-        if (grant) {
-          setDraft(cloneGrant(grant, ownerPhone));
-          onSaved?.(grant);
-        }
-        if (bot?.groupSessionScope) {
-          setGroupSessionScope(normalizeGroupSessionScope(bot.groupSessionScope));
-        }
+        const grant = normalizeAccessGrant(bot?.accessGrant);
+        if (!grant) throw new Error('无法读取访问授权，请返回刷新后重试。');
+        const scope = normalizeGroupSessionScope(bot.groupSessionScope);
+        replaceSaved(grant, scope);
+        onSaved?.(grant);
 
         const missingTitles = Object.entries(grant?.groups ?? {})
           .filter(([, group]) => !(typeof group?.title === 'string' && group.title.trim()))
@@ -453,7 +489,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
             if (cancelled) return;
             const next = grantFromSnapshot(refreshed, account.botId);
             if (next) {
-              setDraft(cloneGrant(next, ownerPhone));
+              replaceSaved(next, scope);
               onSaved?.(next);
             }
           } catch {
@@ -472,7 +508,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
       }
     })();
     return () => { cancelled = true; };
-  }, [account?.botId, rpcCall, ownerPhone]);
+  }, [account?.botId, rpcCall, ownerPhone, replaceSaved]);
 
   const contacts = draft.contacts ?? [];
   const knownGroupJids = React.useMemo(() => {
@@ -489,8 +525,43 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
     () => contacts.filter((contact) => contactNeedsGrantAction(contact, draft, knownGroupJids)),
     [contacts, draft, knownGroupJids],
   );
+  const pendingRequests = (draft.pending ?? [])
+    .filter((entry) => entry.status === 'pending' || !entry.status);
+  const filteredGroupJids = knownGroupJids.filter(jid =>
+    `${groupDisplayName(jid, draft.groups)} ${jid}`.toLowerCase().includes(groupQuery.trim().toLowerCase()));
+  const filteredContacts = actionableContacts.filter(contact =>
+    [contact.phone, contact.pushName, ...(contact.groupJids ?? []).map(jid => groupDisplayName(jid, draft.groups))]
+      .join(' ').toLowerCase().includes(contactQuery.trim().toLowerCase()));
+  const dirty = configurationKey(draft, groupSessionScope) !== configurationKey(baseline.grant, baseline.scope);
+  const editorDisabled = saving || loadingGrant || !grantReady;
+  const sectionCounts = {
+    direct: draft.directMembers.length, groups: knownGroupJids.length,
+    contacts: actionableContacts.length, pending: pendingRequests.length,
+  };
+  const panelProps = id => ({
+    className: 'dim-waAccessPanel',
+    id: `${sectionId}-${id}-panel`, role: 'tabpanel', tabIndex: 0,
+    'aria-labelledby': `${sectionId}-${id}-tab`, hidden: activeSection !== id,
+  });
+  const changeSectionWithKeyboard = (event, index) => {
+    let next;
+    if (event.key === 'ArrowRight') next = (index + 1) % ACCESS_SECTIONS.length;
+    else if (event.key === 'ArrowLeft') next = (index + ACCESS_SECTIONS.length - 1) % ACCESS_SECTIONS.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = ACCESS_SECTIONS.length - 1;
+    else return;
+    event.preventDefault();
+    const id = ACCESS_SECTIONS[next].id;
+    setActiveSection(id);
+    sectionButtons.current[id]?.focus();
+  };
 
   const resolvePending = async (pendingId, action) => {
+    if (editorDisabled) return;
+    if (dirty) {
+      setFeedback({ tone: 'error', message: '请先保存当前修改，再处理审批或同步群名。' });
+      return;
+    }
     setFeedback(null);
     setSaving(true);
     try {
@@ -505,7 +576,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
       }));
       const saved = grantFromSnapshot(value, account.botId);
       if (!saved) throw new Error('服务没有返回已保存的访问授权。');
-      setDraft(cloneGrant(saved, ownerPhone));
+      replaceSaved(saved, groupSessionScope);
       onSaved?.(saved);
       setFeedback({
         tone: 'success',
@@ -520,6 +591,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
 
   const save = async (event) => {
     event.preventDefault();
+    if (editorDisabled || !dirty) return;
     setFeedback(null);
     setSaving(true);
     try {
@@ -535,6 +607,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
           .filter((m) => m.phone),
         groups: Object.fromEntries(Object.entries(draft.groups).map(([jid, group]) => [jid, {
           title: group.title,
+          ...(group.agentPreset ? { agentPreset: group.agentPreset } : {}),
           admins: group.admins.map(normalizeAccessPhone).filter(Boolean),
           members: group.members
             .map((m) => ({ ...m, phone: normalizeAccessPhone(m.phone) }))
@@ -552,8 +625,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
         groupSessionScope: scope,
       }));
       const saved = grantFromSnapshot(value, account.botId) ?? grant;
-      setDraft(cloneGrant(saved, ownerPhone));
-      setGroupSessionScope(scope);
+      replaceSaved(saved, scope);
       onSaved?.(saved);
       setFeedback({ tone: 'success', message: '分级访问设置已保存。' });
     } catch (error) {
@@ -567,14 +639,28 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
   };
 
   return h('form', {
-    className: 'dim-accessPage',
+    className: 'dim-accessPage dim-waAccessPage',
     onSubmit: (event) => void save(event),
   },
   loadingGrant
     ? h('div', { className: 'dim-accessState', 'aria-busy': 'true' }, '正在读取分级访问设置…')
     : null,
-  h('p', { className: 'dim-accessUsersEmpty' },
+  h('p', { className: 'dim-waAccessIntro' },
     'WhatsApp 按电话号码授权：全局管理员管私聊；群管理员只批本群。成员不可跨群、有群权也不自动获得私聊权。'),
+  h('div', { className: 'dim-waAccessTabs', role: 'tablist', 'aria-label': 'WhatsApp 访问设置分区' },
+    ACCESS_SECTIONS.map((section, index) => h('button', {
+      key: section.id, type: 'button', role: 'tab',
+      id: `${sectionId}-${section.id}-tab`,
+      'aria-controls': `${sectionId}-${section.id}-panel`,
+      'aria-selected': activeSection === section.id,
+      tabIndex: activeSection === section.id ? 0 : -1,
+      ref: element => { sectionButtons.current[section.id] = element; },
+      onClick: () => setActiveSection(section.id),
+      onKeyDown: event => changeSectionWithKeyboard(event, index),
+    }, h('span', null, section.label),
+    h('span', { className: 'dim-waAccessCount' }, sectionCounts[section.id])))),
+  h('fieldset', { className: 'dim-waAccessEditor', disabled: editorDisabled },
+  h('section', panelProps('direct'),
   h(AdminPhones, {
     title: '全局管理员',
     help: '绑定账号自动为全局管理员，至少保留一位。',
@@ -583,7 +669,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
     disabled: saving,
     lockedPhone: ownerPhone || null,
     onChange: (globalAdmins) => {
-      setDraft((current) => ({ ...current, globalAdmins }));
+      editDraft((current) => ({ ...current, globalAdmins }));
       setFeedback(null);
     },
   }),
@@ -595,17 +681,18 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
     showAgentPreset: true,
     presetCatalog,
     onChange: (directMembers) => {
-      setDraft((current) => ({ ...current, directMembers }));
+      editDraft((current) => ({ ...current, directMembers }));
       setFeedback(null);
     },
-  }),
+  })),
+  h('section', panelProps('pending'),
   h('fieldset', { className: 'dim-accessScene', disabled: saving },
     h('legend', null, '待审批'),
-    (draft.pending ?? []).filter((entry) => entry.status === 'pending' || !entry.status).length === 0
+    dirty ? h('p', { className: 'dim-accessHint' }, '请先保存当前修改，再处理审批或同步群名。') : null,
+    pendingRequests.length === 0
       ? h('div', { className: 'dim-accessUsersEmpty' }, '暂无待批申请')
       : h('ul', { className: 'dim-accessUserList' },
-          (draft.pending ?? [])
-            .filter((entry) => entry.status === 'pending' || !entry.status)
+          pendingRequests
             .map((entry) => h('li', { key: entry.id, className: 'dim-accessUserRow' },
               h('div', { className: 'dim-accessField' },
                 h('span', null, ...(entry.kind === 'group'
@@ -622,27 +709,44 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
                 type: 'button',
                 className: 'dim-deliveryButton',
                 'data-kind': 'primary',
-                disabled: saving || entry.unresolved,
+                disabled: editorDisabled || dirty || entry.unresolved,
                 onClick: () => void resolvePending(entry.id, 'approve'),
               }, '批准'),
               h('button', {
                 type: 'button',
                 className: 'dim-deliveryButton',
                 'data-kind': 'danger',
-                disabled: saving,
+                disabled: editorDisabled || dirty,
                 onClick: () => void resolvePending(entry.id, 'deny'),
-              }, '拒绝'))))),
+              }, '拒绝')))))),
+  h('section', panelProps('groups'),
   h('fieldset', { className: 'dim-accessScene', disabled: saving },
     h('legend', null, '群授权'),
+    h('label', { className: 'dim-accessField dim-waAccessSearch' },
+      h('span', null, '搜索群名称或 JID'),
+      h('input', {
+        type: 'search', value: groupQuery, placeholder: '搜索群名称或 JID',
+        onChange: event => setGroupQuery(event.target.value),
+        onKeyDown: event => { if (event.key === 'Enter') event.preventDefault(); },
+      })),
     knownGroupJids.length === 0
       ? h('div', { className: 'dim-accessUsersEmpty' },
           '尚无已知群。可在下方粘贴群 JID（…@g.us），或等群内有人 @ 机器人后自动出现。')
-      : knownGroupJids.map((groupJid) => {
+      : filteredGroupJids.length === 0
+        ? h('div', { className: 'dim-accessUsersEmpty' }, '没有匹配的群，请调整搜索条件。')
+        : filteredGroupJids.map((groupJid) => {
           const group = draft.groups[groupJid] ?? { title: '', admins: [], members: [] };
-          return h('div', { key: groupJid, className: 'dim-accessGroupCard' },
+          return h('details', {
+            key: groupJid, className: 'dim-accessGroupCard dim-waAccessGroup',
+            open: filteredGroupJids.length === 1 ? true : undefined,
+          },
+            h('summary', { className: 'dim-waAccessGroupSummary' },
             h('div', { className: 'dim-accessGroupHeading' },
               h('h3', null, groupDisplayName(groupJid, draft.groups)),
               h('code', { className: 'dim-accessGroupJid' }, groupJid)),
+            h('span', { className: 'dim-waAccessGroupMeta' },
+              h('span', null, '本群管理员'), ` ${group.admins.length} · `,
+              h('span', null, '本群授权成员'), ` ${group.members.length}`)),
             h('div', { className: 'dim-accessGroupTitleRow' },
               h('label', { className: 'dim-accessField' },
                 h('span', null, '群名称'),
@@ -650,7 +754,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
                   value: group.title ?? '',
                   maxLength: 128,
                   placeholder: '填写便于识别的群名称',
-                  onChange: (event) => setDraft((current) => ({
+                  onChange: (event) => editDraft((current) => ({
                     ...current,
                     groups: {
                       ...current.groups,
@@ -661,8 +765,10 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
               h('button', {
                 type: 'button',
                 className: 'dim-deliveryButton',
-                disabled: saving,
+                disabled: editorDisabled || dirty,
+                title: dirty ? '请先保存当前修改，再处理审批或同步群名。' : undefined,
                 onClick: () => void (async () => {
+                  if (editorDisabled || dirty) return;
                   setSaving(true);
                   setFeedback(null);
                   try {
@@ -672,7 +778,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
                     ));
                     const next = grantFromSnapshot(refreshed, account.botId);
                     if (!next) throw new Error('服务没有返回已保存的访问授权。');
-                    setDraft(cloneGrant(next, ownerPhone));
+                    replaceSaved(next, groupSessionScope);
                     onSaved?.(next);
                     const title = next.groups?.[groupJid]?.title;
                     setFeedback({
@@ -698,7 +804,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
                 catalog: presetCatalog,
                 disabled: saving,
                 ariaLabel: '群 Agent Preset',
-                onChange: (preset) => setDraft((current) => {
+                onChange: (preset) => editDraft((current) => {
                   const existing = current.groups[groupJid] ?? { title: '', admins: [], members: [] };
                   const nextGroup = { ...existing };
                   if (preset) nextGroup.agentPreset = preset;
@@ -720,7 +826,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
               disabled: saving,
               lockedPhone: null,
               nested: true,
-              onChange: (admins) => setDraft((current) => ({
+              onChange: (admins) => editDraft((current) => ({
                 ...current,
                 groups: {
                   ...current.groups,
@@ -734,7 +840,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
               contacts,
               disabled: saving,
               nested: true,
-              onChange: (members) => setDraft((current) => ({
+              onChange: (members) => editDraft((current) => ({
                 ...current,
                 groups: {
                   ...current.groups,
@@ -756,11 +862,11 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
         className: 'dim-deliveryButton',
         onClick: () => {
           const jid = newGroupJid.trim();
-          if (!/^\d{5,32}@g\.us$/.test(jid)) {
+          if (!ACCESS_GRANT_GROUP_JID_PATTERN.test(jid)) {
             setFeedback({ tone: 'error', message: '群 JID 格式无效。' });
             return;
           }
-          setDraft((current) => ({
+          editDraft((current) => ({
             ...current,
             groups: {
               ...current.groups,
@@ -768,19 +874,40 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
             },
           }));
           setNewGroupJid('');
+          setGroupQuery('');
           setFeedback(null);
         },
       }, '添加群'))),
   h('fieldset', { className: 'dim-accessScene', disabled: saving },
+    h('legend', null, '群会话策略'),
+    h('label', { className: 'dim-accessField' },
+      h('span', null, '群内 Session 绑定'),
+      h('select', {
+        value: groupSessionScope || DEFAULT_GROUP_SESSION_SCOPE,
+        onChange: (event) => { setGroupSessionScope(event.target.value); setFeedback(null); },
+      },
+      h('option', { value: 'user_in_chat' }, '按发言人拆分（推荐）'),
+      h('option', { value: 'chat' }, '整群共享一个 Session'))))),
+  h('section', panelProps('contacts'),
+  h('fieldset', { className: 'dim-accessScene', disabled: saving },
     h('legend', null, '最近联系人（自动沉淀）'),
     h('p', { className: 'dim-accessHint' },
       '仅记录私聊机器人，或在群里 @ 机器人的人。已有对应权限的人会自动隐藏；电话是唯一授权键，可一键加入私聊/本群授权。'),
+    h('label', { className: 'dim-accessField dim-waAccessSearch' },
+      h('span', null, '搜索昵称、电话或群名称'),
+      h('input', {
+        type: 'search', value: contactQuery, placeholder: '搜索昵称、电话或群名称',
+        onChange: event => { setContactQuery(event.target.value); setContactLimit(30); },
+        onKeyDown: event => { if (event.key === 'Enter') event.preventDefault(); },
+      })),
     actionableContacts.length === 0
       ? h('div', { className: 'dim-accessUsersEmpty' },
           contacts.length === 0
             ? '暂无联系人。有人私聊或 @ 机器人后会出现在此。'
             : '当前联系人均已具备对应权限，无需再授权。')
-      : h('div', { className: 'dim-accessTableWrap' },
+      : filteredContacts.length === 0
+        ? h('div', { className: 'dim-accessUsersEmpty' }, '没有匹配的联系人，请调整搜索条件。')
+        : h('div', { className: 'dim-accessTableWrap' },
           h('table', { className: 'dim-accessTable', 'data-kind': 'contact' },
             h('thead', null,
               h('tr', null,
@@ -788,7 +915,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
                 h('th', { scope: 'col' }, '电话'),
                 h('th', { scope: 'col' }, '来源'),
                 h('th', { scope: 'col', className: 'dim-accessTableActions' }, '操作'))),
-            h('tbody', null, actionableContacts.slice(0, 30).map((contact) => {
+            h('tbody', null, filteredContacts.slice(0, contactLimit).map((contact) => {
               const phone = contact.phone || '';
               const nickname = (typeof contact.pushName === 'string' && contact.pushName.trim())
                 ? contact.pushName.trim()
@@ -824,7 +951,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
                     'data-kind': 'primary',
                     disabled: saving,
                     onClick: () => {
-                      setDraft((current) => {
+                      editDraft((current) => {
                         if (current.directMembers.some((m) => m.phone === phone)) return current;
                         return {
                           ...current,
@@ -845,7 +972,7 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
                       className: 'dim-deliveryButton',
                       disabled: saving || !phone,
                       onClick: () => {
-                        setDraft((current) => {
+                        editDraft((current) => {
                           const existing = current.groups[groupJid] ?? { title: '', admins: [], members: [] };
                           if (existing.admins.includes(phone)
                             || existing.members.some((m) => m.phone === phone)) {
@@ -872,27 +999,29 @@ export function AccessGrantSettingsPage({ channel, account, rpcCall, onSaved }) 
                       },
                     }, ['加入群：', name].join(''));
                   })));
-            }))))),
-  h('fieldset', { className: 'dim-accessScene', disabled: saving },
-    h('legend', null, '群会话策略'),
-    h('label', { className: 'dim-accessField' },
-      h('span', null, '群内 Session 绑定'),
-      h('select', {
-        value: groupSessionScope || DEFAULT_GROUP_SESSION_SCOPE,
-        onChange: (event) => setGroupSessionScope(event.target.value),
-      },
-      h('option', { value: 'user_in_chat' }, '按发言人拆分（推荐）'),
-      h('option', { value: 'chat' }, '整群共享一个 Session')))),
+            })))),
+    filteredContacts.length > contactLimit ? h('button', {
+      type: 'button', className: 'dim-deliveryButton dim-waAccessMore',
+      onClick: () => setContactLimit(current => current + 30),
+    }, '显示更多联系人') : null))),
+  h('div', { className: 'dim-waAccessSaveBar' },
   feedback ? h('p', {
     className: 'dim-accessFeedback',
     'data-tone': feedback.tone,
     role: feedback.tone === 'error' ? 'alert' : 'status',
   }, feedback.message) : null,
-  h('div', { className: 'dim-accessActions' },
+  h('div', { className: 'dim-accessActions dim-waAccessSaveActions' },
+    h('span', { className: 'dim-waAccessSaveState', role: 'status' },
+      loadingGrant ? '正在读取分级访问设置…' : !grantReady ? '访问授权暂不可用。'
+        : dirty ? '有未保存的修改' : '所有修改已保存'),
+    h('button', {
+      type: 'button', className: 'dim-deliveryButton', disabled: editorDisabled || !dirty,
+      onClick: () => { replaceSaved(baseline.grant, baseline.scope); setFeedback(null); },
+    }, '撤销修改'),
     h('button', {
       type: 'submit',
       className: 'dim-deliveryButton',
       'data-kind': 'primary',
-      disabled: saving,
-    }, saving ? '正在保存…' : '保存分级访问设置')));
+      disabled: editorDisabled || !dirty,
+    }, saving ? '正在保存…' : '保存分级访问设置'))));
 }

@@ -8,14 +8,23 @@ This file records the notable changes in each dsh-im release. Its format follows
 
 ### Fixed / 修复
 
+- WhatsApp 设置页按私聊与管理员、群授权、最近联系人、待审批分区，支持键盘切换、群与联系人搜索、联系人加载更多、可折叠群配置和固定保存栏。工作区、预设和默认模型以紧凑布局展示；修复保存时丢失群 Agent Preset，以及审批/同步群名覆盖未保存修改的问题。
+  WhatsApp settings now have keyboard-accessible sections, group/contact search, contact pagination, collapsible group configuration, and a sticky save bar. Session defaults use a compact layout. Group Agent Presets survive saving, and approval/name-sync actions preserve unsaved edits.
+
+- `4.9.1-ops.38` 通过 Cordis `ctx.get('udsAuth')` 读取可选认证服务，避免未注入时直接访问 `ctx.udsAuth` 抛错，修复 `ops.37` 引入的微信与 WhatsApp 健康检查 `harness-connect-failed`。新增未声明服务属性访问的回归检查，并用真实 Cordis 插件上下文验证连接。
+  `4.9.1-ops.38` resolves optional authentication through Cordis `ctx.get('udsAuth')`, avoiding undeclared service property access. This fixes the Weixin and WhatsApp health-check `harness-connect-failed` regression introduced in `ops.37`, with strict service-access regression coverage and real Cordis context validation.
+
+- `4.9.1-ops.37` 配合 `uds-auth 0.2.21`，为同 Host IM RPC、事件流和命令隔离网页认证上下文，修复 WhatsApp 后台建会话被误判未登录的问题；保留 UDS 结构化拒绝原因，认证失败不清空聊天绑定。无认证插件时保持原调用流程。
+  With `uds-auth 0.2.21`, `4.9.1-ops.37` isolates browser authentication context for same-Host IM RPCs, event streams, and commands, fixing WhatsApp background Session creation rejected as signed out. UDS rejection details survive adaptation and authentication failures preserve chat bindings. Hosts without the auth plugin retain their existing call flow.
+
 - WhatsApp 成员/群 Agent Preset 空值（UI 原「跟随全局」）现在明确回落到**频道工作区映射预设**，不再让人误以为跟 Host 全局默认；设置页文案改为「跟随频道映射」。`/new` 后建会话也会带上该映射，避免改 Host 全局预设后误用坏默认导致 `SESSION_CREATE`。
   Empty WhatsApp member/group Agent Preset (UI formerly “Follow global”) now clearly falls back to the **channel workspace mapping preset**, not the Host catalog default; settings copy is “Follow channel mapping”. `/new` session creation also carries that mapping so a broken Host global default after operators change it does not surface as `SESSION_CREATE`.
 
 - Host 带斜杠的错误码（如 `gateway/internal`、`workspace/invalid-path`、`agent-preset/not-found`）现在会正确映射为 `SESSION_CREATE` / `WORKSPACE_UNAVAILABLE` / `PRESET_UNAVAILABLE`；`last-message-failure.json` 额外写入 workspace、Host details 与脱敏 message，便于现场对上真实 RPC。
   Host slash-branded failure codes (e.g. `gateway/internal`, `workspace/invalid-path`, `agent-preset/not-found`) now map to `SESSION_CREATE` / `WORKSPACE_UNAVAILABLE` / `PRESET_UNAVAILABLE`; `last-message-failure.json` also records workspace, Host details, and redacted messages for field triage.
 
-- `session.create` 在 Agent Preset 失败或 Host `internal` 时会自动去掉该 preset 重试一次，避免坏的成员/机器人预设覆盖把首次建会话永久卡死；工作区路径匹配进一步用 `realpath`（存在时）对齐 Host 规范路径。
-  `session.create` now retries once without the Agent Preset after preset failures or Host `internal`, so a bad member/bot preset override cannot permanently block first Session creation; workspace path matching also prefers `realpath` when the directory exists, matching Host canonicalization.
+- `session.create` 仅在明确的 Agent Preset 错误时去掉该 preset 重试一次；Host `internal`、认证和传输错误不再触发改预设重试。通用建会话提示引导检查 Host 日志、工作区、预设和认证，避免一律误报目录问题；工作区路径匹配用 `realpath`（存在时）对齐 Host 规范路径。
+  `session.create` retries once without the Agent Preset only for explicit preset errors. Host `internal`, authentication, and transport errors no longer trigger a preset retry. Generic creation errors direct operators to Host logs, workspace, preset, and authentication settings; workspace matching prefers `realpath` when available.
 
 - Windows 下机器人工作区路径与 Host `workspace.list` 仅盘符/路径大小写不同（如 `D:\…` vs `d:\…`）时，不再因严格字符串匹配漏掉已有工作区而去 `workspace.create` / `session.create`，避免误报 `SESSION_CREATE`。
   On Windows, when the bot workspace path differs from a Host `workspace.list` entry only by drive/path casing (e.g. `D:\…` vs `d:\…`), IM now reuses that workspace instead of missing it via exact string match and falling through to `workspace.create` / `session.create` (which surfaced as `SESSION_CREATE`).

@@ -1,4 +1,5 @@
 import { modernHarnessApi } from './modern-harness-api.mjs';
+import { runHarnessHostOperation } from './harness-host-context.mjs';
 
 function optionalService(ctx, name) {
   if (ctx && Object.hasOwn(ctx, name)) return ctx[name];
@@ -13,6 +14,7 @@ export function harnessConnection(ctx, config = {}) {
   const apiProxy = optionalService(ctx, 'apiProxy') ?? modernHarnessApi(ctx);
   return {
     apiProxy,
+    runHostOperation: (operation) => runHarnessHostOperation(ctx, operation),
     // Cordis child contexts share one root; different Hosts must not share
     // ownership of pending questions and approvals.
     interactionScope: ctx.root ?? ctx,

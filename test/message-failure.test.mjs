@@ -108,13 +108,31 @@ test('RPC internal and UNKNOWN provider codes no longer fall through to INTERNAL
   assert.equal(plain.reason, 'ERROR');
 });
 
-test('session.create failures tell operators to check the bot workspace path', () => {
+test('generic session.create failures refer operators to Host logs and configuration', () => {
   const failure = classifyMessageFailure({
     code: 'internal', method: 'session.create',
   }, options);
   assert.equal(failure.code, 'SESSION_CREATE');
   assert.equal(failure.reason, 'SESSION_CREATE');
   assert.match(failure.message, /工作区/);
+  assert.match(failure.message, /Agent Preset.*认证/);
+});
+
+test('login rejections are distinguished from workspace, preset and model failures', () => {
+  for (const error of [
+    { code: 'internal', method: 'session.create', message: 'session.create: 登录后才能创建会话' },
+    { code: 'internal', method: 'session.create', message: 'session.create: Sign in to create a session' },
+    { code: 'gateway/bad-request', method: 'session.create',
+      details: { udsError: 'login_required_create_session' }, message: 'private diagnostic' },
+  ]) {
+    const failure = classifyMessageFailure(error, options);
+    assert.equal(failure.code, 'HARNESS_LOGIN_REQUIRED');
+    assert.match(failure.message, /认证插件/);
+    assert.doesNotMatch(failure.message, /工作区|private/);
+  }
+  assert.equal(classifyMessageFailure({ code: 'gateway/bad-request',
+    details: { udsError: 'session_forbidden' }, method: 'session.history',
+  }, options).code, 'HARNESS_ACCESS');
 });
 
 test('Host branded gateway/internal on session.create maps to SESSION_CREATE', () => {

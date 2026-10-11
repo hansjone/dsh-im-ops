@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { resolve } from 'node:path';
 import test from 'node:test';
 
 import { harnessConnection } from '../plugin-src/host/harness-connection.mjs';
@@ -8,13 +9,16 @@ const IM_CHANNELS = [
   'weixin', 'feishu', 'dingtalk', 'wecom', 'qq',
   'slack', 'telegram', 'discord', 'whatsapp',
 ];
+const TEST_WORKSPACE = resolve('test-workspace');
 
 test('Host connections share the current Cordis root without depending on a webServer', () => {
   const root = {};
   const apiProxy = {};
   const first = harnessConnection({ root, apiProxy });
   const second = harnessConnection({ root, apiProxy });
-  assert.deepEqual(first, { apiProxy, interactionScope: root });
+  assert.equal(first.apiProxy, apiProxy);
+  assert.equal(first.interactionScope, root);
+  assert.equal(first.runHostOperation(() => 'result'), 'result');
   assert.equal(first.interactionScope, second.interactionScope);
   assert.notEqual(first.interactionScope, harnessConnection({ root: {}, apiProxy }).interactionScope);
 
@@ -37,9 +41,9 @@ test('a Host with neither legacy apiProxy nor a modern gateway fails clearly', (
   );
 });
 
-test('Host and all IM channel plugins require only services shared by old and new Harness', async () => {
+test('Host injects webServer for RPC mounts while channel Harness clients use shared gateway services', async () => {
   assert.equal(hostInject.includes('apiProxy'), false);
-  assert.equal(hostInject.includes('webServer'), false);
+  assert.equal(hostInject.includes('webServer'), true);
   assert.ok(hostInject.includes('typertGateway'));
   for (const channel of IM_CHANNELS) {
     const { inject } = await import(`../plugin-src/host/channels/${channel}/index.mjs`);
@@ -71,7 +75,7 @@ async function assembledHarness(channel, ctx, config = {}) {
     constructor(options) { constructed.runtime = options; }
   }
   const production = await createProductionController(ctx, {
-    workspace: '/test/workspace',
+    workspace: TEST_WORKSPACE,
     ...config,
   }, {
     ConfigStore,
@@ -98,7 +102,7 @@ async function assembledHarness(channel, ctx, config = {}) {
   try {
     if (channel === 'office') {
       constructed.controller.createRuntime({});
-      constructed.runtime.createHarness({ workspace: '/test/workspace' });
+      constructed.runtime.createHarness({ workspace: TEST_WORKSPACE });
     }
     return constructed.harness;
   } finally {
@@ -114,7 +118,7 @@ for (const channel of [...IM_CHANNELS, 'office']) {
     assert.equal(options.apiProxy, apiProxy);
     assert.equal(options.interactionScope, root);
     assert.equal(Object.hasOwn(options, 'baseUrl'), false);
-    assert.equal(options.workspace, '/test/workspace');
+    assert.equal(options.workspace, TEST_WORKSPACE);
     assert.equal(options.autostart, false);
   });
 

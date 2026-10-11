@@ -1,5 +1,5 @@
 import { withSessionBindingLock } from './session-binding-lock.mjs';
-import { isMissingSessionError } from './message-failure.mjs';
+import { isHarnessAccessError, isMissingSessionError } from './message-failure.mjs';
 import { initialSessionTitle } from './session-title.mjs';
 
 export const WORKSPACE_SESSION_STALE = 'workspace-session-stale';
@@ -64,6 +64,7 @@ async function boundSessionReusable({
     if (!(await sessionExists(session, existsOptions))) return false;
   } catch (error) {
     if (error?.code === WORKSPACE_SESSION_STALE || existsOptions?.signal?.aborted) throw error;
+    if (isHarnessAccessError(error)) throw error;
     if (isMissingSessionError(error)) return false;
     // History probe failed with a non-missing code (often Host `internal` on a
     // zombie binding). Recreate from bot settings instead of surfacing HARNESS_SERVICE.
@@ -92,6 +93,7 @@ async function boundSessionReusable({
     return belongs;
   } catch (error) {
     if (error?.code === WORKSPACE_SESSION_STALE || existsOptions?.signal?.aborted) throw error;
+    if (isHarnessAccessError(error)) throw error;
     console.warn(
       '[dsh-im] unable to verify Session workspace membership; recreating:',
       error?.message ?? error,

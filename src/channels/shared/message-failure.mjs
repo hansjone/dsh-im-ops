@@ -88,12 +88,14 @@ const FAILURE_MESSAGES = Object.freeze({
     '暂时无法确认任务状态，任务可能已经开始。请先等待或发送 /stop，不要立即重复提交。',
   HARNESS_ACCESS:
     '处理服务拒绝了机器人连接。请管理员检查 Harness 地址、代理或访问配置后重试。',
+  HARNESS_LOGIN_REQUIRED:
+    'Host 认证插件拒绝了机器人后台请求。请管理员检查认证插件与 IM 的后台调用集成后重试。',
   HARNESS_PROTOCOL:
     '机器人与 DeepSeek Harness 的接口不兼容。请管理员检查 Harness 地址并更新相关版本。',
   HARNESS_SERVICE:
     'DeepSeek Harness 暂时无法完成请求，请稍后重试。',
   SESSION_CREATE:
-    '无法在当前工作区创建新会话。请检查机器人工作区是否为绝对路径、目录存在、且运行 Host 的账号可访问；改回可用工作区后重试。',
+    '无法创建新会话。请管理员根据参考号检查 Host 日志，确认工作区、Agent Preset 和认证配置后重试。',
   MODEL_REPLY_TIMEOUT:
     '等待模型回复超时，任务可能仍在运行。请先等待或发送 /stop，不要立即重复提交。',
   MODEL_AUTH:
@@ -182,11 +184,32 @@ function isHostPresetCode(code) {
     || code.startsWith('agent-preset-');
 }
 
+function isHarnessLoginRequired(error) {
+  const reason = error?.details?.udsError;
+  if (typeof reason === 'string' && reason.startsWith('login_required_')) return true;
+  // Older adapters flattened UDS RemoteError into internal with only this text.
+  return ['session.create', 'session.history', 'session.prompt'].includes(rpcMethod(error))
+    && /(?:^|:\s*)(?:登录后才能创建会话|Sign in to create a session)\s*$/iu.test(error?.message ?? '');
+}
+
+/** Host ACL failures must not cause a chat binding to be deleted or recreated. */
+export function isHarnessAccessError(error) {
+  return isHarnessLoginRequired(error)
+    || [
+      'harness-auth-required', 'harness-proxy-auth-required',
+      'harness-loopback-forbidden', 'harness-host-untrusted', 'harness-request-forbidden',
+    ].includes(error?.code)
+    || ['session_forbidden', 'session_workspace_only', 'workspace_path_only',
+      'workspace_create_forbidden', 'forbidden_settings'].includes(error?.details?.udsError);
+}
+
 function failureCode(error) {
   const code = typeof error?.code === 'string' ? error.code : '';
   const method = rpcMethod(error);
   const providerCode = providerFailureCode(error);
   if (providerCode) return providerCode;
+  if (isHarnessLoginRequired(error)) return 'HARNESS_LOGIN_REQUIRED';
+  if (isHarnessAccessError(error)) return 'HARNESS_ACCESS';
 
   // Transport wording can appear on non-turn errors (RPC/cause chain) too.
   if (isTransportProviderMessage(providerErrorMessage(error))) return 'MODEL_TRANSPORT';
@@ -281,6 +304,7 @@ const PERSISTED_FAILURE_CODES = new Set([
   'HARNESS_CONNECT',
   'HARNESS_TIMEOUT',
   'HARNESS_ACCESS',
+  'HARNESS_LOGIN_REQUIRED',
   'HARNESS_PROTOCOL',
   'MODEL_TRANSPORT',
 ]);
@@ -302,6 +326,7 @@ function diagnosticDetails(error) {
   for (const key of [
     'path', 'workspaceId', 'sessionId', 'agentPreset', 'requestedPreset',
     'existingPreset', 'requestedCwd', 'existingCwd', 'reason', 'name',
+    'udsError',
   ]) {
     if (!Object.hasOwn(details, key)) continue;
     const value = redactedDetail(details[key]);

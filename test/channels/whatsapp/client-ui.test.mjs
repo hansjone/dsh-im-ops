@@ -73,9 +73,25 @@ test('WhatsApp account card uses the unified compact channel layout', () => {
   assert.match(markup, /class="dim-presetSelect"/);
   assert.match(markup, /默认模型/);
   assert.match(markup, /Agent Preset/);
+  assert.match(markup, /会话默认设置/);
+  assert.match(markup, /修改后自动保存/);
+  assert.match(markup, /dwa-settingsGrid/);
+  assert.match(markup, /<code>\/new<\/code>/);
   assert.match(markup, /aria-label="更多机器人设置"/);
   assert.doesNotMatch(markup, /仅自己模式（默认）|指定联系人模式|开放响应模式/);
   assert.match(markup, /role="status"[^>]*>测试消息已发送/);
+});
+
+test('a connection check shows progress even when the last snapshot was connected', () => {
+  const markup = renderToStaticMarkup(React.createElement(WhatsappAccountCard, {
+    account: {
+      botId: 'wa-checking', connected: true, state: 'connected',
+      bot: { name: 'Bot', idMasked: '1650••••0123' }, health: {},
+    }, busy: 'reconnect',
+  }));
+  assert.match(markup, /正在检查连接/);
+  assert.doesNotMatch(markup, /运行正常/);
+  assert.match(markup, /data-tone="warning"/);
 });
 
 test('WhatsApp connection check requests a test message from the existing reconnect endpoint', async () => {

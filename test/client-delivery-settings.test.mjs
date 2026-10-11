@@ -258,7 +258,7 @@ test('the card gear opens a bot-scoped page in the current channel panel and ret
     await flush();
   });
   assert.ok(renderer.root.findByProps({ 'data-bot-id': 'wx_stable_bot' }));
-  assert.equal(renderer.root.findByProps({ id: 'dim-tab-weixin' }).props['aria-selected'], true);
+  assert.equal(renderer.root.findByProps({ className: 'dim-channelPickerSelect' }).props.value, 'weixin');
 });
 
 test('access settings preserve independent mode drafts and save direct and group atomically', async (t) => {
@@ -287,7 +287,8 @@ test('access settings preserve independent mode drafts and save direct and group
   });
 
   assert.equal(renderer.root.findAllByProps({ role: 'tab' }).length, 2);
-  assert.equal(renderer.root.findAllByProps({ className: 'dim-accessScene' }).length, 2);
+  assert.equal(renderer.root.findAllByProps({ className: 'dim-accessScene' })
+    .filter(node => ['direct', 'group'].includes(node.props['data-scene'])).length, 2);
   assert.equal(renderer.root.findAllByProps({ className: 'dim-accessOwnerNotice' }).length, 0);
   assert.equal(accessHelpButtons(renderer.root).length, 2);
   for (const [scene, title] of [['direct', '私聊'], ['group', '群聊']]) {
@@ -457,9 +458,12 @@ test('access settings preserve independent mode drafts and save direct and group
         },
       },
     },
+  }, {
+    endpoint: 'bot.group-session-scope.set',
+    payload: { botId: connectedAccount.botId, groupSessionScope: 'user_in_chat' },
   }]);
   const feedback = renderer.root.findByProps({ className: 'dim-accessFeedback' });
-  assert.match(textOf(feedback), /访问设置已保存/);
+  assert.match(textOf(feedback), /访问与群会话设置已保存/);
   assert.equal(feedback.props['data-tone'], 'success');
   assert.equal(feedback.props.role, 'status');
 

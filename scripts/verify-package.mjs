@@ -28,6 +28,8 @@ const required = [
   'PROACTIVE_DELIVERY.md',
   'PROACTIVE_DELIVERY.en.md',
   'THIRD_PARTY_NOTICES.md',
+  'docs/host-auth-integration.md',
+  'plugin-src/host/harness-host-context.mjs',
   'plugin-src/client/channels/dingtalk/index.js',
   'plugin-src/client/channels/slack/index.js',
   'plugin-src/client/i18n.js',
@@ -83,6 +85,12 @@ const [
 ]);
 const manifest = JSON.parse(manifestText);
 const lock = JSON.parse(lockText);
+if (lock.name !== manifest.name || lock.version !== manifest.version
+  || lock.packages?.['']?.name !== manifest.name || lock.packages?.['']?.version !== manifest.version) {
+  throw new Error('package lock identity must match the package manifest');
+}
+const loaderId = process.env.DSH_IM_CLIENT_ID ?? manifest.name;
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // DSH runtime packages use module-local Symbol keys, so a second physical copy breaks Host lookup.
 const forbiddenDshDependency = /^@deepseek-ai\/dsh-/;
@@ -118,7 +126,7 @@ if (forbiddenDshLockPaths.length > 0) {
   );
 }
 
-if (!/\bid\s*:\s*["']@xmanrui\/dsh-im["']/u.test(client)) {
+if (!new RegExp(`\\bid\\s*:\\s*["']${escapeRegex(loaderId)}["']`, 'u').test(client)) {
   throw new Error('client bundle does not register the dsh-im loader id');
 }
 const sourceSectionMarkers = [
@@ -186,7 +194,8 @@ if (/@xmanrui\/dsh-(?:feishu|weixin|dingtalk)/.test(
 )) {
   throw new Error('source or package metadata still depends on an external channel plugin');
 }
-if (!patch.includes("name: '@xmanrui/dsh-im'") || /dsh-(?:feishu|weixin|dingtalk)/.test(patch)) {
+if (!new RegExp(`^\\s*name:\\s*['"]?${escapeRegex(manifest.name)}['"]?\\s*$`, 'mu').test(patch)
+  || /dsh-(?:feishu|weixin|dingtalk)/.test(patch)) {
   throw new Error('bundle patch must activate only dsh-im');
 }
 for (const name of ['@xmanrui/dsh-feishu', '@xmanrui/dsh-weixin', '@xmanrui/dsh-dingtalk']) {
@@ -232,7 +241,9 @@ if (/(?:from\s*|import\s*\(|require\s*\()\s*["'](?:@larksuiteoapi\/node-sdk|@whi
 if (!/(?:from\s*|import\s*\()\s*["']undici["']/.test(host)) {
   throw new Error('host bundle must retain undici as an external runtime dependency');
 }
-if ((executable.mode & 0o111) === 0) throw new Error('dsh-im CLI is not executable');
+if (process.platform !== 'win32' && (executable.mode & 0o111) === 0) {
+  throw new Error('dsh-im CLI is not executable');
+}
 if (/private-bot-token|must-be-rolled-back|DEEPSEEK_API_KEY=/.test(client + host)) {
   throw new Error('built artifacts contain a test or environment secret marker');
 }

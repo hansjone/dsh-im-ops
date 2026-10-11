@@ -9,7 +9,8 @@ function invoke(callback, value, onError) {
   }
 }
 
-async function watchInProcessMux({ apiProxy, rpcId, signal, onOpen, onEnvelope }) {
+async function watchInProcessMux({ apiProxy, rpcId, signal, onOpen, onEnvelope,
+  runHostOperation = (operation) => operation() }) {
   const controller = new AbortController();
   const close = () => controller.abort(signal.reason);
   let iterator;
@@ -22,10 +23,12 @@ async function watchInProcessMux({ apiProxy, rpcId, signal, onOpen, onEnvelope }
   };
   signal.addEventListener('abort', close, { once: true });
   try {
-    iterator = apiProxy.events.mux({ rpcId, payload: {} }, controller.signal)[Symbol.asyncIterator]();
+    iterator = runHostOperation(() => (
+      apiProxy.events.mux({ rpcId, payload: {} }, controller.signal)[Symbol.asyncIterator]()
+    ));
     // mux registers listeners eagerly, but its generator installs abort/finally
     // cleanup only on the first next(). Start it even if mux itself aborted us.
-    pending = Promise.resolve(iterator.next());
+    pending = Promise.resolve(runHostOperation(() => iterator.next()));
     if (!controller.signal.aborted) invoke(onOpen, close, fail);
     while (!controller.signal.aborted) {
       const { value, done } = await pending;
@@ -36,7 +39,7 @@ async function watchInProcessMux({ apiProxy, rpcId, signal, onOpen, onEnvelope }
         method: value?.payload?.type,
         payload: value?.payload,
       }, fail);
-      if (!controller.signal.aborted) pending = Promise.resolve(iterator.next());
+      if (!controller.signal.aborted) pending = Promise.resolve(runHostOperation(() => iterator.next()));
     }
   } catch (error) {
     fail(error);
@@ -48,7 +51,7 @@ async function watchInProcessMux({ apiProxy, rpcId, signal, onOpen, onEnvelope }
     close();
     await pending?.catch(() => undefined);
     try {
-      await iterator?.return?.();
+      await runHostOperation(() => iterator?.return?.());
     } catch (error) {
       if (!cancelled) failure ??= error;
     }

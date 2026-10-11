@@ -1,3 +1,5 @@
+import { runHarnessHostOperation } from './harness-host-context.mjs';
+
 /**
  * Adapt the Host's Typert command gateway to the channel Harness client.
  * Programmatic production fixtures may omit the gateway and exercise other assembly paths.
@@ -20,7 +22,7 @@ export function createHarnessCommandExecutor(ctx, provided) {
       signal: options.signal,
     };
     try {
-      return await gateway.invoke(request);
+      return await runHarnessHostOperation(ctx, () => gateway.invoke(request));
     } catch (error) {
       // Newer Hosts require images; older Hosts reject that field before
       // invoking the command. Retry only that exact pre-dispatch failure so
@@ -32,10 +34,10 @@ export function createHarnessCommandExecutor(ctx, provided) {
         throw error;
       }
       options.signal?.throwIfAborted();
-      return gateway.invoke({
+      return runHarnessHostOperation(ctx, () => gateway.invoke({
         ...request,
         args: { agentId: sessionId, line },
-      });
+      }));
     }
   };
 }

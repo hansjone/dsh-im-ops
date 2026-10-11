@@ -2,7 +2,7 @@ import * as React from 'react';
 
 import { WhatsappLogoGlyph } from '../../channel-logos.js';
 import { QrActionIcon } from '../../credential-binding.js';
-import { h } from '../../i18n.js';
+import { h, isEnglish } from '../../i18n.js';
 import { WorkspaceEditor } from '../../workspace-editor.js';
 import { ContextEnhancementEditor } from '../../context-enhancement.js';
 import {
@@ -52,7 +52,7 @@ const Button = React.forwardRef(function Button(
 function checkedTime(value) {
   if (!value) return '尚未检查';
   try {
-    return new Intl.DateTimeFormat('zh-CN', {
+    return new Intl.DateTimeFormat(isEnglish() ? 'en-US' : 'zh-CN', {
       hour: '2-digit', minute: '2-digit', second: '2-digit',
     }).format(new Date(value));
   } catch {
@@ -197,9 +197,11 @@ export function WhatsappAccountCard({
   onConfirmRemove,
   onCancelRemove,
 }) {
-  const state = busy === 'reconnect' ? 'connecting' : account.state;
-  const tone = account.connected ? 'success' : state === 'error' ? 'error' : 'warning';
-  const stateLabel = account.connected ? '运行正常' : state === 'connecting' ? '正在连接' : '连接未就绪';
+  const settingsId = React.useId();
+  const checking = busy === 'reconnect';
+  const state = checking ? 'connecting' : account.state;
+  const tone = checking ? 'warning' : account.connected ? 'success' : state === 'error' ? 'error' : 'warning';
+  const stateLabel = checking ? '正在检查连接' : account.connected ? '运行正常' : state === 'connecting' ? '正在连接' : '连接未就绪';
   const summary = account.error?.message ?? (account.connected ? null : account.health.summary);
   return h('article', { className: 'ddt-card dim-botCard', 'data-bot-id': account.botId },
     h('div', { className: 'ddt-cardBody dim-botCardBody' },
@@ -229,6 +231,11 @@ export function WhatsappAccountCard({
             accessGrant: account.accessGrant,
             groupSessionScope: account.groupSessionScope,
           }))),
+      h('section', { className: 'dwa-sessionSettings', 'aria-labelledby': settingsId },
+      h('div', { className: 'dwa-settingsHeading' },
+        h('h4', { id: settingsId }, '会话默认设置'),
+        h('span', null, '修改后自动保存')),
+      h('div', { className: 'dwa-settingsGrid' },
       h(WorkspaceEditor, {
         workspace: account.workspace,
         disabled: Boolean(busy),
@@ -243,7 +250,11 @@ export function WhatsappAccountCard({
         defaultModel: account.defaultModel,
         disabled: Boolean(busy),
         onSave: onDefaultModelSave,
-      }),
+      })),
+      h('p', { className: 'dwa-settingsHint' },
+        '预设和模型只影响新会话。已有聊天请先发送 ',
+        h('code', null, '/new'),
+        '，再发送普通消息。')),
       h(ContextEnhancementEditor, {
         config: account.contextEnhancement,
         disabled: Boolean(busy),

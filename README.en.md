@@ -106,6 +106,8 @@ A GitHub-source installation fetches and builds a Git dependency directly. With 
 
 After installation, follow the built-in instructions on each channel page to scan a QR code or enter credentials. Secrets and Tokens are sent only to the local Harness Host and stored through its protected credential provider; status responses and bot lists never return them.
 
+When also using `uds-auth`, install `dsh-im-ops >= 4.9.1-ops.38` and `uds-auth >= 0.2.21`, then restart the Host. IM background calls use the optional `udsAuth.runAsHost()` callback to isolate browser login context. Hosts without that authentication plugin need no additional configuration. Authentication rejections report `HARNESS_LOGIN_REQUIRED` / `HARNESS_ACCESS` and preserve chat bindings. See [Host authentication integration and troubleshooting](docs/host-auth-integration.md).
+
 If this machine must use a forward proxy to reach Feishu, set `HTTPS_PROXY` to a full HTTP proxy URL before starting `dsh web` (for example, `http://proxy:8080`; lowercase `https_proxy` is also supported, with `HTTP_PROXY` accepted as a fallback), then restart the Host after changing it. Feishu registration and credential verification reuse the SDK's proxy-aware HTTP client, while the message WebSocket explicitly uses that proxy; the WebSocket path does not currently read `ALL_PROXY` or `NO_PROXY`.
 
 If this machine cannot reach the Telegram Bot API directly, use Node.js 22.21 or newer and enable Node's environment proxy support before starting `dsh web`:

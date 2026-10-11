@@ -49,7 +49,7 @@ test('all legacy channel clients now use the shared Harness RPC transport', asyn
   }
 });
 
-test('shared Harness health checks expose precise safe availability codes', async () => {
+test('shared Harness health checks expose precise safe availability codes', async (t) => {
   const clientWithFetch = (fetchImpl, baseUrl = 'http://127.0.0.1:3080') => new HarnessClient({
     baseUrl,
     workspace: '/tmp/default-workspace',
@@ -73,6 +73,9 @@ test('shared Harness health checks expose precise safe availability codes', asyn
     if (signal.aborted) rejectTimeout();
     else signal.addEventListener('abort', rejectTimeout, { once: true });
   }));
+  // AbortSignal.timeout is unref'ed; the mock has no socket to keep Node alive.
+  const keepAlive = setTimeout(() => {}, 100);
+  t.after(() => clearTimeout(keepAlive));
   await assert.rejects(timeoutClient.rpc('host.describe', {}, 1), (error) => {
     assert.ok(error instanceof HarnessTransportError);
     assert.equal(error.code, 'harness-timeout');
@@ -189,6 +192,29 @@ test('HarnessClient forwards a per-session agent preset override', async () => {
     workspaceId: 'workspace-one',
     agentPreset: 'marketing-jeep',
   });
+});
+
+test('HarnessClient retries only verified preset creation failures', async () => {
+  for (const code of ['agent-preset/not-found', 'internal', 'gateway/internal', 'harness-http-failed']) {
+    const client = new HarnessClient({ baseUrl: 'http://127.0.0.1:3080', agentPreset: 'broken' });
+    client.ensureRunning = async () => true;
+    client.workspaceId = async () => 'workspace';
+    const calls = [];
+    client.rpc = async (_method, payload) => {
+      calls.push(payload);
+      if (calls.length === 1) throw Object.assign(new Error('create failed'), { code });
+      return { sessionId: 'recovered' };
+    };
+    if (code.startsWith('agent-preset/')) {
+      assert.equal(await client.createSession(), 'recovered');
+      assert.deepEqual(calls, [
+        { workspaceId: 'workspace', agentPreset: 'broken' }, { workspaceId: 'workspace' },
+      ]);
+    } else {
+      await assert.rejects(client.createSession(), { code });
+      assert.equal(calls.length, 1, code);
+    }
+  }
 });
 
 test('HarnessClient lists only absolute workspace paths', async () => {
